@@ -1,18 +1,5 @@
-use clap::{arg_enum, crate_authors, crate_version, App, Arg, SubCommand};
-
-#[derive(Debug, PartialEq)]
-enum MathjaxPolicy {
-    Auto,
-    Always,
-    Never,
-}
-
-impl MathjaxPolicy {
-    // TODO: Generate with proc-macro.
-    fn variants() -> &'static [&'static str] {
-        &["auto", "always", "never"]
-    }
-}
+use crate::render::MathjaxPolicy;
+use clap::{crate_authors, crate_version, App, Arg, SubCommand};
 
 pub(crate) fn create() -> App<'static, 'static> {
     App::new("carbon")
@@ -41,7 +28,7 @@ pub(crate) fn create() -> App<'static, 'static> {
                         .long("mathjax")
                         .case_insensitive(true)
                         .required(false)
-                        .default_value("auto")
+                        .takes_value(true)
                         .possible_values(&MathjaxPolicy::variants())
                         .help("Policy for including script tags for loading Mathjax from CDN"),
                 ),
