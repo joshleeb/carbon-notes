@@ -1,7 +1,8 @@
 pub(crate) use mathjax::MathjaxPolicy;
 
 use clap::ArgMatches;
-use std::path::PathBuf;
+use pulldown_cmark::{html, Parser};
+use std::{io, path::PathBuf};
 
 mod mathjax;
 
@@ -23,4 +24,16 @@ impl From<&ArgMatches<'static>> for RenderOptions {
             mathjax_policy: mathjax_policy.parse().unwrap(),
         }
     }
+}
+
+/// Renders Markdown to HTML.
+pub(crate) fn render(_opts: &RenderOptions, content: &str) -> io::Result<String> {
+    // TODO: creating pulldown_cmark::parser in render::render
+    //  - create parser with options
+    //  - can create parser with callback for handling broken links
+    let md_parser = Parser::new(content);
+
+    let mut html_buf = String::new();
+    html::push_html(&mut html_buf, md_parser);
+    Ok(html_buf)
 }

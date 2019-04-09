@@ -7,3 +7,4 @@ publish = false
 
 [dependencies]
 clap = "2.32.0"
+pulldown-cmark = "0.4.0"
