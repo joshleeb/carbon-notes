@@ -1,7 +1,8 @@
 pub(crate) use mathjax::MathjaxPolicy;
 
 use clap::ArgMatches;
-use pulldown_cmark::{html, Parser};
+use pulldown_cmark::{html, Event, Parser, Tag};
+use regex::Regex;
 use std::{io, path::PathBuf};
 
 mod mathjax;
@@ -26,14 +27,108 @@ impl From<&ArgMatches<'static>> for RenderOptions {
     }
 }
 
+#[derive(Default)]
+struct RenderState {
+    /// ATX header level if a header is being processed.
+    header: Option<i32>,
+}
+
 /// Renders Markdown to HTML.
 pub(crate) fn render(_opts: &RenderOptions, content: &str) -> io::Result<String> {
     // TODO: creating pulldown_cmark::parser in render::render
     //  - create parser with options
     //  - can create parser with callback for handling broken links
     let md_parser = Parser::new(content);
+    let mut state = RenderState::default();
+    let mut events = vec![];
+
+    for event in md_parser {
+        match event {
+            Event::Start(Tag::Header(atx_level)) => {
+                state.header = Some(atx_level);
+            }
+            Event::Text(text) => {
+                if let Some(atx_level) = state.header {
+                    events.push(render_header_start(atx_level, &text));
+                    state.header = None;
+                }
+                events.push(Event::Text(text));
+            }
+            ev => events.push(ev),
+        }
+    }
 
     let mut html_buf = String::new();
-    html::push_html(&mut html_buf, md_parser);
+    html::push_html(&mut html_buf, events.into_iter());
     Ok(html_buf)
+}
+
+/// Render a header start event or an HTML tag for the header with an ID.
+fn render_header_start(atx_level: i32, raw_text: &str) -> Event<'static> {
+    // Remove leading and trailing whitespace, convert to lowercase, and filter out punctuation.
+    let text = raw_text
+        .trim()
+        .to_lowercase()
+        .chars()
+        .filter(|c| !c.is_ascii_punctuation())
+        .fold(String::new(), |mut acc, c| {
+            acc.push(c);
+            acc
+        });
+
+    if text.is_empty() {
+        return Event::Start(Tag::Header(atx_level));
+    }
+
+    // Replace groups of spaces with dashes.
+    let re_space_group = Regex::new(r"\s+").unwrap();
+    let id = re_space_group.replace_all(&text, "-");
+
+    Event::Html(format!("<h{} id=\"{}\">", atx_level, id).into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod header_start {
+        use super::*;
+
+        #[test]
+        fn empty_text() {
+            assert_eq!(render_header_start(1, ""), Event::Start(Tag::Header(1)))
+        }
+
+        #[test]
+        fn non_empty_text() {
+            assert_eq!(
+                render_header_start(1, "some text"),
+                Event::Html("<h1 id=\"some-text\">".into())
+            )
+        }
+
+        #[test]
+        fn to_lowercase() {
+            assert_eq!(
+                render_header_start(1, "SoMe TeXt"),
+                Event::Html("<h1 id=\"some-text\">".into())
+            )
+        }
+
+        #[test]
+        fn strip_whitespace() {
+            assert_eq!(
+                render_header_start(1, " some   text   "),
+                Event::Html("<h1 id=\"some-text\">".into())
+            )
+        }
+
+        #[test]
+        fn removes_punctuation() {
+            assert_eq!(
+                render_header_start(1, "1. s'ome t:e;x`t"),
+                Event::Html("<h1 id=\"1-some-text\">".into())
+            )
+        }
+    }
 }
