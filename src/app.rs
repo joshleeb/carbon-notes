@@ -17,6 +17,13 @@ pub(crate) fn create() -> App<'static, 'static> {
                         .help("Stylesheet to include"),
                 )
                 .arg(
+                    Arg::with_name("syntax-theme")
+                        .long("syntax-theme")
+                        .required(false)
+                        .takes_value(true)
+                        .help("Syntax highlighting theme"),
+                )
+                .arg(
                     Arg::with_name("inline-style")
                         .long("inline-style")
                         .required(false)

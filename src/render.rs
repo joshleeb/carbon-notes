@@ -13,6 +13,7 @@ mod mathjax;
 #[derive(Debug)]
 pub(crate) struct RenderOptions {
     stylesheet_path: Option<PathBuf>,
+    syntax_theme: String,
     should_inline_style: bool,
     mathjax_policy: MathjaxPolicy,
 }
@@ -20,10 +21,15 @@ pub(crate) struct RenderOptions {
 impl From<&ArgMatches<'static>> for RenderOptions {
     fn from(matches: &ArgMatches<'static>) -> Self {
         let stylesheet_path = matches.value_of("stylesheet").map(PathBuf::from);
+        let syntax_theme = matches
+            .value_of("syntax-theme")
+            .unwrap_or("base16-ocean.dark")
+            .into();
         let mathjax_policy = matches.value_of("mathjax-policy").unwrap_or("auto");
 
         Self {
             stylesheet_path,
+            syntax_theme,
             should_inline_style: matches.is_present("inline-style"),
             mathjax_policy: mathjax_policy.parse().unwrap(),
         }
@@ -44,7 +50,7 @@ pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> 
     //  - create parser with options
     //  - can create parser with callback for handling broken links
     let md_parser = Parser::new(content);
-    let syntax_highlighter = SyntaxHighlighter::default();
+    let syntax_highlighter = SyntaxHighlighter::with_theme(&opts.syntax_theme)?;
 
     let mut state = RenderState::default();
     let mut events = vec![];
@@ -70,7 +76,7 @@ pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> 
             }
             Event::End(Tag::CodeBlock(_)) => {
                 if let Some(code_block) = state.code_block {
-                    events.push(syntax_highlighter.render(&code_block));
+                    events.push(syntax_highlighter.render(&code_block)?);
                     state.code_block = None;
                 }
             }

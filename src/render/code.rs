@@ -1,32 +1,46 @@
 use pulldown_cmark::{CowStr, Event};
-use syntect::{highlighting::ThemeSet, html::highlighted_html_for_string, parsing::SyntaxSet};
+use std::io;
+use syntect::{
+    highlighting::{Theme, ThemeSet},
+    html::highlighted_html_for_string,
+    parsing::SyntaxSet,
+};
 
 pub(crate) struct SyntaxHighlighter {
+    theme: Theme,
     syntax_set: SyntaxSet,
-    theme_set: ThemeSet,
 }
 
-impl Default for SyntaxHighlighter {
-    fn default() -> Self {
-        Self {
-            syntax_set: SyntaxSet::load_defaults_newlines(),
-            theme_set: ThemeSet::load_defaults(),
-        }
-    }
-}
-
-// TODO: Implement SyntaxHighlighter::with_theme
 impl SyntaxHighlighter {
-    // TODO: Handle errors in SyntaxHighlighter::render
-    pub(crate) fn render(&self, block: &CodeBlock) -> Event {
-        let theme = &self.theme_set.themes["base16-ocean.dark"];
-        let syntax = self.syntax_set.find_syntax_by_token(&block.lang).unwrap();
-        let html = highlighted_html_for_string(&block.code, &self.syntax_set, &syntax, theme);
-        Event::Html(CowStr::from(html))
+    pub(crate) fn with_theme(theme_name: &str) -> io::Result<Self> {
+        let theme_set = ThemeSet::load_defaults();
+        let theme = theme_set.themes.get(theme_name).ok_or(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("unknown syntax highlighting theme {}", theme_name),
+        ))?;
+
+        Ok(Self {
+            theme: theme.clone(),
+            syntax_set: SyntaxSet::load_defaults_newlines(),
+        })
     }
 
-    pub(crate) fn get_theme_names(&self) -> Vec<String> {
-        let keys = self.theme_set.themes.keys();
+    pub(crate) fn render(&self, block: &CodeBlock) -> io::Result<Event> {
+        let syntax = self
+            .syntax_set
+            .find_syntax_by_token(&block.lang)
+            .ok_or(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("unknown syntax highlighting token {}", block.lang),
+            ))?;
+
+        let html = highlighted_html_for_string(&block.code, &self.syntax_set, &syntax, &self.theme);
+        Ok(Event::Html(CowStr::from(html)))
+    }
+
+    pub(crate) fn get_theme_names() -> Vec<String> {
+        let theme_set = ThemeSet::load_defaults();
+        let keys = theme_set.themes.keys();
         keys.map(|k| k.to_string()).collect()
     }
 }
