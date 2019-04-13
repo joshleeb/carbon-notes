@@ -24,6 +24,11 @@ impl SyntaxHighlighter {
         let html = highlighted_html_for_string(&block.code, &self.syntax_set, &syntax, theme);
         Event::Html(CowStr::from(html))
     }
+
+    pub(crate) fn get_theme_names(&self) -> Vec<String> {
+        let keys = self.theme_set.themes.keys();
+        keys.map(|k| k.to_string()).collect()
+    }
 }
 
 pub(crate) struct CodeBlock {

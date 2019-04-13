@@ -34,4 +34,12 @@ pub(crate) fn create() -> App<'static, 'static> {
                 ),
         )
         .subcommand(SubCommand::with_name("sync").about("in progress..."))
+        .subcommand(
+            SubCommand::with_name("info")
+                .about("Display useful information")
+                .subcommand(
+                    SubCommand::with_name("syntax-themes")
+                        .about("Display the list of known syntax highlighting themes"),
+                ),
+        )
 }

@@ -1,7 +1,9 @@
+use clap::ArgMatches;
 use render::RenderOptions;
 use std::io::{self, Read, Write};
 
 mod app;
+mod info;
 mod render;
 
 fn cmd_render(opts: RenderOptions) -> io::Result<()> {
@@ -18,11 +20,19 @@ fn cmd_render(opts: RenderOptions) -> io::Result<()> {
     write!(out_handle, "{}", html_content)
 }
 
+fn cmd_info(matches: &ArgMatches<'static>) -> io::Result<()> {
+    match matches.subcommand() {
+        ("syntax-themes", _) => info::list_syntax_themes(),
+        _ => unimplemented!(),
+    }
+}
+
 fn main() -> io::Result<()> {
     let matches = app::create().get_matches();
 
     match matches.subcommand() {
         ("render", Some(matches)) => cmd_render(matches.into()),
+        ("info", Some(matches)) => cmd_info(matches),
         _ => unimplemented!(),
     }
 }

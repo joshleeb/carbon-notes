@@ -6,7 +6,8 @@ use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
 use std::{io, path::PathBuf};
 
-mod code;
+pub(crate) mod code;
+
 mod mathjax;
 
 #[derive(Debug)]
