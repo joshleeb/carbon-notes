@@ -1,10 +1,12 @@
 pub(crate) use mathjax::MathjaxPolicy;
 
+use self::code::{CodeBlock, SyntaxHighlighter};
 use clap::ArgMatches;
 use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
 use std::{io, path::PathBuf};
 
+mod code;
 mod mathjax;
 
 #[derive(Debug)]
@@ -31,14 +33,18 @@ impl From<&ArgMatches<'static>> for RenderOptions {
 struct RenderState {
     /// ATX header level if a header is being processed.
     header: Option<i32>,
+    /// Code block if a code block is being processed.
+    code_block: Option<CodeBlock>,
 }
 
 /// Renders Markdown to HTML.
-pub(crate) fn render(_opts: &RenderOptions, content: &str) -> io::Result<String> {
+pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> {
     // TODO: creating pulldown_cmark::parser in render::render
     //  - create parser with options
     //  - can create parser with callback for handling broken links
     let md_parser = Parser::new(content);
+    let syntax_highlighter = SyntaxHighlighter::default();
+
     let mut state = RenderState::default();
     let mut events = vec![];
 
@@ -47,12 +53,25 @@ pub(crate) fn render(_opts: &RenderOptions, content: &str) -> io::Result<String>
             Event::Start(Tag::Header(atx_level)) => {
                 state.header = Some(atx_level);
             }
+            Event::Start(Tag::CodeBlock(language)) => {
+                state.code_block = Some(CodeBlock::new(language));
+            }
             Event::Text(text) => {
                 if let Some(atx_level) = state.header {
                     events.push(render_header_start(atx_level, &text));
                     state.header = None;
                 }
-                events.push(Event::Text(text));
+                if let Some(ref mut code_block) = state.code_block {
+                    code_block.push(&text);
+                } else {
+                    events.push(Event::Text(text));
+                }
+            }
+            Event::End(Tag::CodeBlock(_)) => {
+                if let Some(code_block) = state.code_block {
+                    events.push(syntax_highlighter.render(&code_block));
+                    state.code_block = None;
+                }
             }
             ev => events.push(ev),
         }
