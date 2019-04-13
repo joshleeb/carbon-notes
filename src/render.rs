@@ -10,6 +10,8 @@ pub(crate) mod code;
 
 mod mathjax;
 
+type ParserOptions = pulldown_cmark::Options;
+
 #[derive(Debug)]
 pub(crate) struct RenderOptions {
     stylesheet_path: Option<PathBuf>,
@@ -19,6 +21,7 @@ pub(crate) struct RenderOptions {
 }
 
 impl From<&ArgMatches<'static>> for RenderOptions {
+    // TODO: RenderOptions::from default to looking in XDG_CONFIG for stylesheets
     fn from(matches: &ArgMatches<'static>) -> Self {
         let stylesheet_path = matches.value_of("stylesheet").map(PathBuf::from);
         let syntax_theme = matches
@@ -46,11 +49,10 @@ struct RenderState {
 
 /// Renders Markdown to HTML.
 pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> {
-    // TODO: creating pulldown_cmark::parser in render::render
-    //  - create parser with options
-    //  - can create parser with callback for handling broken links
-    let md_parser = Parser::new(content);
     let syntax_highlighter = SyntaxHighlighter::with_theme(&opts.syntax_theme)?;
+    let parser_opts = get_parser_opts();
+    let md_parser =
+        Parser::new_with_broken_link_callback(content, parser_opts, Some(&handle_broken_link));
 
     let mut state = RenderState::default();
     let mut events = vec![];
@@ -85,8 +87,14 @@ pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> 
     }
 
     let mut html_buf = String::new();
+    // TODO: render::render include wrapping html tags, stylesheet, and mathjax if set in opts
     html::push_html(&mut html_buf, events.into_iter());
     Ok(html_buf)
+}
+
+fn handle_broken_link(url: &str, title: &str) -> Option<(String, String)> {
+    eprintln!("found broken link with: {}, {}", url, title);
+    None
 }
 
 /// Render a header start event or an HTML tag for the header with an ID.
@@ -111,6 +119,16 @@ fn render_header_start(atx_level: i32, raw_text: &str) -> Event<'static> {
     let id = re_space_group.replace_all(&text, "-");
 
     Event::Html(format!("<h{} id=\"{}\">", atx_level, id).into())
+}
+
+#[inline]
+fn get_parser_opts() -> ParserOptions {
+    let mut opts = pulldown_cmark::Options::empty();
+    opts.insert(ParserOptions::ENABLE_TABLES);
+    opts.insert(ParserOptions::ENABLE_FOOTNOTES);
+    opts.insert(ParserOptions::ENABLE_STRIKETHROUGH);
+    opts.insert(ParserOptions::ENABLE_TASKLISTS);
+    opts
 }
 
 #[cfg(test)]
