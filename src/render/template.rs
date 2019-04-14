@@ -18,13 +18,20 @@ pub(crate) struct Template<'a> {
 }
 
 impl<'a> Template<'a> {
-    pub(crate) fn new(title: Option<String>, content: &'a str) -> Self {
+    pub(crate) fn new(content: &'a str) -> Self {
         let ctx = Context {
-            title,
             content,
             ..Default::default()
         };
         Self { ctx }
+    }
+
+    pub(crate) fn set_title(&mut self, title: String) {
+        self.ctx.title = Some(title);
+    }
+
+    pub(crate) fn set_styles(&mut self, styles: String) {
+        self.ctx.styles = Some(styles);
     }
 
     pub(crate) fn include_mathjax(&mut self) {
@@ -42,8 +49,9 @@ impl<'a> ToString for Template<'a> {
 //  - Shouldn't need to move or copy anything here as we are just reading values
 #[derive(Default)]
 struct Context<'a> {
-    title: Option<String>,
     content: &'a str,
+    title: Option<String>,
+    styles: Option<String>,
     include_mathjax: bool,
 }
 
@@ -66,6 +74,9 @@ fn head(ctx: &Context) -> Markup {
             meta charset="utf-8";
             @if let Some(ref title) = ctx.title {
                 title { (title) }
+            }
+            @if let Some(ref styles) = ctx.styles {
+                style { (PreEscaped(styles)) }
             }
         }
     }

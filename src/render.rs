@@ -9,9 +9,11 @@ use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
 use std::{io, path::PathBuf};
 
+// TODO: Make render::code private and not pub(crate)
 pub(crate) mod code;
 
 mod mathjax;
+mod style;
 mod template;
 
 type ParserOptions = pulldown_cmark::Options;
@@ -19,7 +21,6 @@ type ParserOptions = pulldown_cmark::Options;
 #[derive(Debug)]
 pub(crate) struct RenderOptions {
     stylesheet_path: Option<PathBuf>,
-    should_inline_style: bool,
     syntax_theme: String,
     mathjax_policy: MathjaxPolicy,
 }
@@ -37,7 +38,6 @@ impl From<&ArgMatches<'static>> for RenderOptions {
         Self {
             stylesheet_path,
             syntax_theme,
-            should_inline_style: matches.is_present("inline-style"),
             mathjax_policy: mathjax_policy.parse().unwrap(),
         }
     }
@@ -98,7 +98,13 @@ pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> 
     let mut html_buf = String::new();
     html::push_html(&mut html_buf, events.into_iter());
 
-    let mut tmpl = Template::new(state.title, &html_buf);
+    let mut tmpl = Template::new(&html_buf);
+    if let Some(title) = state.title {
+        tmpl.set_title(title);
+    }
+    if let Some(ref path) = opts.stylesheet_path {
+        tmpl.set_styles(style::read_stylesheet(path)?);
+    }
     if opts.mathjax_policy.should_include() {
         tmpl.include_mathjax()
     }

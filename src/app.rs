@@ -14,7 +14,7 @@ pub(crate) fn create() -> App<'static, 'static> {
                         .long("stylesheet")
                         .required(false)
                         .takes_value(true)
-                        .help("Stylesheet to include"),
+                        .help("Stylesheet to be inlined"),
                 )
                 .arg(
                     Arg::with_name("syntax-theme")
@@ -22,13 +22,6 @@ pub(crate) fn create() -> App<'static, 'static> {
                         .required(false)
                         .takes_value(true)
                         .help("Syntax highlighting theme"),
-                )
-                .arg(
-                    Arg::with_name("inline-style")
-                        .long("inline-style")
-                        .required(false)
-                        .takes_value(false)
-                        .help("Whether to inline stylesheet in rendered HTML"),
                 )
                 .arg(
                     Arg::with_name("mathjax-policy")

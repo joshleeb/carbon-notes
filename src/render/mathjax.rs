@@ -16,7 +16,7 @@ impl MathjaxPolicy {
     pub(crate) fn should_include(&self) -> bool {
         match self {
             MathjaxPolicy::Auto | MathjaxPolicy::Always => true,
-            _ => false
+            _ => false,
         }
     }
 }
