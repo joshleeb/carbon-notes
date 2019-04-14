@@ -1,3 +1,5 @@
+#![feature(proc_macro_hygiene)]
+
 use clap::ArgMatches;
 use render::RenderOptions;
 use std::io::{self, Read, Write};

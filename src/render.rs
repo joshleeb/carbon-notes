@@ -1,6 +1,9 @@
 pub(crate) use mathjax::MathjaxPolicy;
 
-use self::code::{CodeBlock, SyntaxHighlighter};
+use self::{
+    code::{CodeBlock, SyntaxHighlighter},
+    template::Template,
+};
 use clap::ArgMatches;
 use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
@@ -9,6 +12,7 @@ use std::{io, path::PathBuf};
 pub(crate) mod code;
 
 mod mathjax;
+mod template;
 
 type ParserOptions = pulldown_cmark::Options;
 
@@ -41,6 +45,8 @@ impl From<&ArgMatches<'static>> for RenderOptions {
 
 #[derive(Default)]
 struct RenderState {
+    /// Title of the page if the first line is a header.
+    title: Option<String>,
     /// ATX header level if a header is being processed.
     header: Option<i32>,
     /// Code block if a code block is being processed.
@@ -67,6 +73,9 @@ pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> 
             }
             Event::Text(text) => {
                 if let Some(atx_level) = state.header {
+                    if state.title.is_none() && atx_level == 1 {
+                        state.title = Some(text.to_string());
+                    }
                     events.push(render_header_start(atx_level, &text));
                     state.header = None;
                 }
@@ -87,9 +96,10 @@ pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> 
     }
 
     let mut html_buf = String::new();
-    // TODO: render::render include wrapping html tags, stylesheet, and mathjax if set in opts
     html::push_html(&mut html_buf, events.into_iter());
-    Ok(html_buf)
+
+    let tmpl = Template::new(state.title, &html_buf);
+    Ok(tmpl.to_string())
 }
 
 fn handle_broken_link(url: &str, title: &str) -> Option<(String, String)> {
