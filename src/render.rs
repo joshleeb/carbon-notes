@@ -19,8 +19,8 @@ type ParserOptions = pulldown_cmark::Options;
 #[derive(Debug)]
 pub(crate) struct RenderOptions {
     stylesheet_path: Option<PathBuf>,
-    syntax_theme: String,
     should_inline_style: bool,
+    syntax_theme: String,
     mathjax_policy: MathjaxPolicy,
 }
 
@@ -98,7 +98,11 @@ pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> 
     let mut html_buf = String::new();
     html::push_html(&mut html_buf, events.into_iter());
 
-    let tmpl = Template::new(state.title, &html_buf);
+    let mut tmpl = Template::new(state.title, &html_buf);
+    if opts.mathjax_policy.should_include() {
+        tmpl.include_mathjax()
+    }
+
     Ok(tmpl.to_string())
 }
 
