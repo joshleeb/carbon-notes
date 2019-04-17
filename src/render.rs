@@ -1,47 +1,19 @@
-pub(crate) use mathjax::MathjaxPolicy;
-
 use self::{
     code::{CodeBlock, SyntaxHighlighter},
     template::Template,
 };
-use clap::ArgMatches;
+use crate::config::RenderConfig;
 use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
-use std::{io, path::PathBuf};
+use std::{
+    fs::File,
+    io::{self, Read},
+};
 
-// TODO: Make render::code private and not pub(crate)
-pub(crate) mod code;
-
-mod mathjax;
-mod style;
+mod code;
 mod template;
 
 type ParserOptions = pulldown_cmark::Options;
-
-#[derive(Debug)]
-pub(crate) struct RenderOptions {
-    stylesheet_path: Option<PathBuf>,
-    syntax_theme: String,
-    mathjax_policy: MathjaxPolicy,
-}
-
-impl From<&ArgMatches<'static>> for RenderOptions {
-    // TODO: RenderOptions::from default to looking in XDG_CONFIG for stylesheets
-    fn from(matches: &ArgMatches<'static>) -> Self {
-        let stylesheet_path = matches.value_of("stylesheet").map(PathBuf::from);
-        let syntax_theme = matches
-            .value_of("syntax-theme")
-            .unwrap_or("base16-ocean.dark")
-            .into();
-        let mathjax_policy = matches.value_of("mathjax-policy").unwrap_or("auto");
-
-        Self {
-            stylesheet_path,
-            syntax_theme,
-            mathjax_policy: mathjax_policy.parse().unwrap(),
-        }
-    }
-}
 
 #[derive(Default)]
 struct RenderState {
@@ -54,8 +26,8 @@ struct RenderState {
 }
 
 /// Renders Markdown to HTML.
-pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> {
-    let syntax_highlighter = SyntaxHighlighter::with_theme(&opts.syntax_theme)?;
+pub(crate) fn render(config: &RenderConfig, content: &str) -> io::Result<String> {
+    let syntax_highlighter = SyntaxHighlighter::with_theme(&config.code_block_theme)?;
     let parser_opts = get_parser_opts();
     let md_parser =
         Parser::new_with_broken_link_callback(content, parser_opts, Some(&handle_broken_link));
@@ -102,10 +74,15 @@ pub(crate) fn render(opts: &RenderOptions, content: &str) -> io::Result<String> 
     if let Some(title) = state.title {
         tmpl.set_title(title);
     }
-    if let Some(ref path) = opts.stylesheet_path {
-        tmpl.set_styles(style::read_stylesheet(path)?);
+
+    // TODO: render::render support not inlining the stylesheet
+    println!("{}", config.stylesheet_path.clone().unwrap().display());
+    if let Some(ref path) = config.stylesheet_path {
+        let mut stylesheet_content = String::new();
+        File::open(path).and_then(|mut fh| fh.read_to_string(&mut stylesheet_content))?;
+        tmpl.set_styles(stylesheet_content);
     }
-    if opts.mathjax_policy.should_include() {
+    if config.mathjax_policy.inclusion() {
         tmpl.include_mathjax()
     }
 

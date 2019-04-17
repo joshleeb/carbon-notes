@@ -37,12 +37,6 @@ impl SyntaxHighlighter {
         let html = highlighted_html_for_string(&block.code, &self.syntax_set, &syntax, &self.theme);
         Ok(Event::Html(CowStr::from(html)))
     }
-
-    pub(crate) fn get_theme_names() -> Vec<String> {
-        let theme_set = ThemeSet::load_defaults();
-        let keys = theme_set.themes.keys();
-        keys.map(|k| k.to_string()).collect()
-    }
 }
 
 pub(crate) struct CodeBlock {
