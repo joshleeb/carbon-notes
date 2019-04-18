@@ -5,12 +5,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// TODO: config::Config should allow for missing config `sync` and `render` and to use defaults
-// instead
 // TODO: config::Config should expand `~` and env variables in paths in config.toml
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
+    #[serde(default)]
     pub sync: SyncConfig,
+    #[serde(default)]
     pub render: RenderConfig,
 }
 
@@ -43,23 +43,30 @@ impl Config {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
 pub(crate) struct SyncConfig {}
 
 #[derive(Debug, Deserialize)]
+#[serde(default)]
 pub(crate) struct RenderConfig {
     #[serde(rename = "stylesheet")]
     pub stylesheet_path: Option<PathBuf>,
-
     #[serde(rename = "inline_stylesheet")]
-    #[serde(default = "default_inline_stylesheet")]
     pub should_inline_stylesheet: bool,
-
-    #[serde(default = "default_code_block_theme")]
     pub code_block_theme: String,
-
-    #[serde(default = "MathjaxPolicy::default")]
     pub mathjax_policy: MathjaxPolicy,
+}
+
+impl Default for RenderConfig {
+    fn default() -> Self {
+        Self {
+            stylesheet_path: None,
+            should_inline_stylesheet: false,
+            code_block_theme: "base16-ocean.dark".into(),
+            mathjax_policy: MathjaxPolicy::Always,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -80,12 +87,4 @@ impl Default for MathjaxPolicy {
     fn default() -> Self {
         MathjaxPolicy::Always
     }
-}
-
-fn default_code_block_theme() -> String {
-    "base16-ocean.dark".into()
-}
-
-fn default_inline_stylesheet() -> bool {
-    true
 }
