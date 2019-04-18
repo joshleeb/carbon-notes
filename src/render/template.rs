@@ -1,4 +1,5 @@
-use maud::{html, Markup, PreEscaped, DOCTYPE};
+use maud::{html, Markup, PreEscaped, Render, DOCTYPE};
+use std::path::Path;
 
 const MATHJAX_CONFIG: &str = "
     MathJax.Hub.Config({
@@ -30,8 +31,8 @@ impl<'a> Template<'a> {
         self.ctx.title = Some(title);
     }
 
-    pub(crate) fn set_styles(&mut self, styles: String) {
-        self.ctx.styles = Some(styles);
+    pub(crate) fn set_stylesheet(&mut self, stylesheet: Stylesheet<'a>) {
+        self.ctx.stylesheet = Some(stylesheet);
     }
 
     pub(crate) fn include_mathjax(&mut self) {
@@ -45,13 +46,32 @@ impl<'a> ToString for Template<'a> {
     }
 }
 
+pub(crate) enum Stylesheet<'a> {
+    Inline(String),
+    Link(&'a Path),
+}
+
+impl<'a> Render for Stylesheet<'a> {
+    fn render(&self) -> Markup {
+        match self {
+            Stylesheet::Inline(styles) => {
+                html! { style { (PreEscaped(styles)) } }
+            }
+            Stylesheet::Link(path) => {
+                let path_str = path.to_str().unwrap();
+                html! { link rel="stylesheet" type="text/css" href=(path_str) {} }
+            }
+        }
+    }
+}
+
 // TODO: template::Context
 //  - Shouldn't need to move or copy anything here as we are just reading values
 #[derive(Default)]
 struct Context<'a> {
     content: &'a str,
     title: Option<String>,
-    styles: Option<String>,
+    stylesheet: Option<Stylesheet<'a>>,
     include_mathjax: bool,
 }
 
@@ -75,8 +95,8 @@ fn head(ctx: &Context) -> Markup {
             @if let Some(ref title) = ctx.title {
                 title { (title) }
             }
-            @if let Some(ref styles) = ctx.styles {
-                style { (PreEscaped(styles)) }
+            @if let Some(ref style) = ctx.stylesheet {
+                (style)
             }
         }
     }

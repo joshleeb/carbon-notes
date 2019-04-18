@@ -1,6 +1,6 @@
 use self::{
     code::{CodeBlock, SyntaxHighlighter},
-    template::Template,
+    template::{Stylesheet, Template},
 };
 use crate::config::RenderConfig;
 use pulldown_cmark::{html, Event, Parser, Tag};
@@ -75,11 +75,14 @@ pub(crate) fn render(config: &RenderConfig, content: &str) -> io::Result<String>
         tmpl.set_title(title);
     }
 
-    // TODO: render::render support not inlining the stylesheet
     if let Some(ref path) = config.stylesheet_path {
-        let mut stylesheet_content = String::new();
-        File::open(path).and_then(|mut fh| fh.read_to_string(&mut stylesheet_content))?;
-        tmpl.set_styles(stylesheet_content);
+        if config.should_inline_stylesheet {
+            let mut stylesheet_content = String::new();
+            File::open(path).and_then(|mut fh| fh.read_to_string(&mut stylesheet_content))?;
+            tmpl.set_stylesheet(Stylesheet::Inline(stylesheet_content));
+        } else {
+            tmpl.set_stylesheet(Stylesheet::Link(&path));
+        }
     }
     if config.mathjax_policy.inclusion() {
         tmpl.include_mathjax()

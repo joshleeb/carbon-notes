@@ -4,7 +4,7 @@ use self::{app::Args, config::Config};
 use clap::ArgMatches;
 use std::{
     convert::TryFrom,
-    fs::{File},
+    fs::File,
     io::{self, Read, Write},
 };
 
