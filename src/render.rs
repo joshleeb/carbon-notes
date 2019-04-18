@@ -76,7 +76,6 @@ pub(crate) fn render(config: &RenderConfig, content: &str) -> io::Result<String>
     }
 
     // TODO: render::render support not inlining the stylesheet
-    println!("{}", config.stylesheet_path.clone().unwrap().display());
     if let Some(ref path) = config.stylesheet_path {
         let mut stylesheet_content = String::new();
         File::open(path).and_then(|mut fh| fh.read_to_string(&mut stylesheet_content))?;

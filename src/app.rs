@@ -74,7 +74,6 @@ pub(crate) struct Args {
     pub input_path: PathBuf,
     pub output_path: PathBuf,
     pub overwrite_output: bool,
-    pub config_dir: PathBuf,
     pub config_path: PathBuf,
 }
 
@@ -83,10 +82,7 @@ impl TryFrom<&ArgMatches<'static>> for Args {
 
     fn try_from(matches: &ArgMatches<'static>) -> Result<Self, Self::Error> {
         let input_path = matches.value_of("FILE").map(PathBuf::from).unwrap();
-
         let config_path = get_config_path(matches.value_of("config").map(PathBuf::from))?;
-        let config_dir = config_path.ancestors().nth(1).unwrap().into();
-
         let overwrite_output = matches.is_present("force");
         let output_path = get_output_path(
             matches.value_of("output").map(PathBuf::from),
@@ -98,7 +94,6 @@ impl TryFrom<&ArgMatches<'static>> for Args {
             input_path,
             output_path,
             overwrite_output,
-            config_dir,
             config_path,
         })
     }

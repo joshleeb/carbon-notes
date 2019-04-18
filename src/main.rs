@@ -4,7 +4,7 @@ use self::{app::Args, config::Config};
 use clap::ArgMatches;
 use std::{
     convert::TryFrom,
-    fs::{self, File},
+    fs::{File},
     io::{self, Read, Write},
 };
 
@@ -14,12 +14,7 @@ mod info;
 mod render;
 
 fn cmd_render(args: Args) -> io::Result<()> {
-    if !args.config_path.exists() {
-        fs::create_dir_all(&args.config_dir)?;
-        // TODO: main::cmd_render to write default config file if it doesn't exist.
-        File::create(&args.config_path)?;
-    }
-    let config = Config::read_from(&args.config_path)?;
+    let config = Config::read_or_write_default(&args.config_path)?;
 
     let mut md_content = String::new();
     File::open(&args.input_path).and_then(|mut fh| fh.read_to_string(&mut md_content))?;
