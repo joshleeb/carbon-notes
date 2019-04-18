@@ -20,13 +20,26 @@ impl Config {
         File::open(path)
             .and_then(|mut fh| fh.read_to_string(&mut buf))
             .and_then(|_| {
-                toml::from_str(&buf).map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("failed to parse config: {}", e),
-                    )
-                })
+                toml::from_str(&buf)
+                    .map(|config: Config| config.resolve_stylesheet_path(path))
+                    .map_err(|e| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("failed to parse config: {}", e),
+                        )
+                    })
             })
+    }
+
+    /// Map `stylesheet_path` to be relative to `config_path` if it is not absolute.
+    fn resolve_stylesheet_path(mut self, config_path: &Path) -> Self {
+        if let Some(ref stylesheet_path) = self.render.stylesheet_path {
+            if !stylesheet_path.is_absolute() {
+                let config_dir = config_path.ancestors().nth(1).unwrap();
+                self.render.stylesheet_path = Some(config_dir.join(stylesheet_path));
+            }
+        }
+        self
     }
 }
 
@@ -35,8 +48,6 @@ pub(crate) struct SyncConfig {}
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct RenderConfig {
-    // TODO: config::RenderConfig::stylesheet_path should be an absolute path that is relative to
-    // config directory
     #[serde(rename = "stylesheet")]
     pub stylesheet_path: Option<PathBuf>,
 
