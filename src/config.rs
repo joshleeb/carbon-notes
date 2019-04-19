@@ -5,7 +5,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// TODO: config::Config should expand `~` and env variables in paths in config.toml
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub(crate) struct Config {
@@ -58,13 +57,38 @@ impl Config {
 
     /// Map `stylesheet_path` to be relative to `config_path` if it is not absolute.
     fn resolve_stylesheet_path(mut self, config_path: &Path) -> Self {
-        if let Some(ref stylesheet_path) = self.render.stylesheet_path {
-            if !stylesheet_path.is_absolute() {
-                let config_dir = config_path.ancestors().nth(1).unwrap();
-                self.render.stylesheet_path = Some(config_dir.join(stylesheet_path));
+        self.render.stylesheet_path = self.render.stylesheet_path.map(|path| {
+            let expanded_path = expand_tilde(&path).unwrap_or(path);
+            if expanded_path.is_absolute() {
+                return expanded_path;
             }
-        }
+            let config_dir = config_path.ancestors().nth(1).unwrap();
+            config_dir.join(expanded_path)
+        });
         self
+    }
+}
+
+// TODO: config::expand_tilde should be rewritten and tested
+fn expand_tilde<P: AsRef<Path>>(path_user_input: P) -> Option<PathBuf> {
+    let p = path_user_input.as_ref();
+    if p.starts_with("~") {
+        if p == Path::new("~") {
+            dirs::home_dir()
+        } else {
+            dirs::home_dir().map(|mut h| {
+                if h == Path::new("/") {
+                    // Corner case: `h` root directory;
+                    // don't prepend extra `/`, just drop the tilde.
+                    p.strip_prefix("~").unwrap().to_path_buf()
+                } else {
+                    h.push(p.strip_prefix("~/").unwrap());
+                    h
+                }
+            })
+        }
+    } else {
+        Some(p.to_path_buf())
     }
 }
 
