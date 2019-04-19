@@ -3,6 +3,7 @@
 use self::{
     app::{RenderArgs, SyncArgs},
     config::Config,
+    stylesheet::Stylesheet,
 };
 use clap::ArgMatches;
 use std::{
@@ -14,17 +15,30 @@ use std::{
 mod app;
 mod config;
 mod info;
+mod mathjax;
 mod render;
+mod stylesheet;
 mod sync;
 
 fn cmd_render(args: RenderArgs) -> io::Result<()> {
-    let config = Config::default();
+    let config = Config::default().render;
 
-    let mut md_content = String::new();
-    File::open(&args.input_path).and_then(|mut fh| fh.read_to_string(&mut md_content))?;
+    let mut markdown = String::new();
+    File::open(&args.input_path).and_then(|mut fh| fh.read_to_string(&mut markdown))?;
 
-    let html_content = render::render(&config.render, &md_content)?;
-    File::create(&args.output_path).and_then(|mut fh| fh.write_all(&html_content.as_bytes()))
+    let stylesheet = config
+        .stylesheet_path
+        .as_ref()
+        .map(|path| Stylesheet::from_config(path, config.should_inline_stylesheet))
+        .transpose()?;
+
+    let rendered_html = render::render(
+        &markdown,
+        &stylesheet,
+        &config.code_block_theme,
+        &config.mathjax_policy,
+    )?;
+    File::create(&args.output_path).and_then(|mut fh| fh.write_all(&rendered_html.as_bytes()))
 }
 
 fn cmd_sync(_args: SyncArgs) -> io::Result<()> {

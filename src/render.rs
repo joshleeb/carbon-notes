@@ -1,14 +1,11 @@
 use self::{
     code::{CodeBlock, SyntaxHighlighter},
-    template::{Stylesheet, Template},
+    template::Template,
 };
-use crate::config::RenderConfig;
+use crate::{mathjax::MathjaxPolicy, stylesheet::Stylesheet};
 use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
-use std::{
-    fs::File,
-    io::{self, Read},
-};
+use std::io;
 
 mod code;
 mod template;
@@ -26,11 +23,16 @@ struct RenderState {
 }
 
 /// Renders Markdown to HTML.
-pub(crate) fn render(config: &RenderConfig, content: &str) -> io::Result<String> {
-    let syntax_highlighter = SyntaxHighlighter::with_theme(&config.code_block_theme)?;
+pub(crate) fn render(
+    markdown: &str,
+    stylesheet: &Option<Stylesheet>,
+    code_block_theme: &str,
+    mathjax: &MathjaxPolicy,
+) -> io::Result<String> {
+    let syntax_highlighter = SyntaxHighlighter::with_theme(&code_block_theme)?;
     let parser_opts = get_parser_opts();
     let md_parser =
-        Parser::new_with_broken_link_callback(content, parser_opts, Some(&handle_broken_link));
+        Parser::new_with_broken_link_callback(markdown, parser_opts, Some(&handle_broken_link));
 
     let mut state = RenderState::default();
     let mut events = vec![];
@@ -70,24 +72,12 @@ pub(crate) fn render(config: &RenderConfig, content: &str) -> io::Result<String>
     let mut html_buf = String::new();
     html::push_html(&mut html_buf, events.into_iter());
 
-    let mut tmpl = Template::new(&html_buf);
-    if let Some(title) = state.title {
-        tmpl.set_title(title);
-    }
-
-    if let Some(ref path) = config.stylesheet_path {
-        if config.should_inline_stylesheet {
-            let mut stylesheet_content = String::new();
-            File::open(path).and_then(|mut fh| fh.read_to_string(&mut stylesheet_content))?;
-            tmpl.set_stylesheet(Stylesheet::Inline(stylesheet_content));
-        } else {
-            tmpl.set_stylesheet(Stylesheet::Link(&path));
-        }
-    }
-    if config.mathjax_policy.inclusion() {
-        tmpl.include_mathjax()
-    }
-
+    let tmpl = Template {
+        content: &html_buf,
+        title: state.title.as_ref().map(|x| &**x),
+        stylesheet,
+        mathjax,
+    };
     Ok(tmpl.to_string())
 }
 

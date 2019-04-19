@@ -1,3 +1,4 @@
+use crate::mathjax::MathjaxPolicy;
 use std::path::PathBuf;
 
 #[derive(Debug, Default)]
@@ -23,19 +24,6 @@ impl Default for RenderConfig {
             code_block_theme: "base16-ocean.dark",
             mathjax_policy: MathjaxPolicy::Always,
         }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub(crate) enum MathjaxPolicy {
-    Always,
-    // Never,
-}
-
-// TODO: config::MathjaxPolicy implement the `Auto` policy
-impl MathjaxPolicy {
-    pub(crate) fn inclusion(&self) -> bool {
-        *self == MathjaxPolicy::Always
     }
 }
 
