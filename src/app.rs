@@ -52,7 +52,8 @@ pub(crate) fn create() -> App<'static, 'static> {
         .subcommand(
             SubCommand::with_name("sync")
                 // TODO: app::sync better about message
-                .about("Sync a directory to it's rendered equivalent"),
+                .about("Sync a directory to it's rendered equivalent")
+                .arg(arg_config()),
         )
         .subcommand(
             SubCommand::with_name("info")
@@ -75,19 +76,19 @@ fn arg_config() -> Arg<'static, 'static> {
 }
 
 #[derive(Debug)]
-pub(crate) struct Args {
+pub(crate) struct RenderArgs {
+    pub config_path: PathBuf,
     pub input_path: PathBuf,
     pub output_path: PathBuf,
     pub overwrite_output: bool,
-    pub config_path: PathBuf,
 }
 
-impl TryFrom<&ArgMatches<'static>> for Args {
+impl TryFrom<&ArgMatches<'static>> for RenderArgs {
     type Error = io::Error;
 
     fn try_from(matches: &ArgMatches<'static>) -> Result<Self, Self::Error> {
-        let input_path = matches.value_of("FILE").map(PathBuf::from).unwrap();
         let config_path = get_config_path(matches.value_of("config").map(PathBuf::from))?;
+        let input_path = matches.value_of("FILE").map(PathBuf::from).unwrap();
         let overwrite_output = matches.is_present("force");
         let output_path = get_output_path(
             matches.value_of("output").map(PathBuf::from),
@@ -96,11 +97,25 @@ impl TryFrom<&ArgMatches<'static>> for Args {
         )?;
 
         Ok(Self {
+            config_path,
             input_path,
             output_path,
             overwrite_output,
-            config_path,
         })
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct SyncArgs {
+    pub config_path: PathBuf,
+}
+
+impl TryFrom<&ArgMatches<'static>> for SyncArgs {
+    type Error = io::Error;
+
+    fn try_from(matches: &ArgMatches<'static>) -> Result<Self, Self::Error> {
+        let config_path = get_config_path(matches.value_of("config").map(PathBuf::from))?;
+        Ok(Self { config_path })
     }
 }
 

@@ -91,6 +91,7 @@ pub(crate) fn render(config: &RenderConfig, content: &str) -> io::Result<String>
     Ok(tmpl.to_string())
 }
 
+// TODO: render::handle_broken_link should be implemented
 fn handle_broken_link(url: &str, title: &str) -> Option<(String, String)> {
     eprintln!("found broken link with: {}, {}", url, title);
     None

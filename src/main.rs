@@ -1,6 +1,9 @@
 #![feature(proc_macro_hygiene)]
 
-use self::{app::Args, config::Config};
+use self::{
+    app::{RenderArgs, SyncArgs},
+    config::Config,
+};
 use clap::ArgMatches;
 use std::{
     convert::TryFrom,
@@ -12,8 +15,9 @@ mod app;
 mod config;
 mod info;
 mod render;
+mod sync;
 
-fn cmd_render(args: Args) -> io::Result<()> {
+fn cmd_render(args: RenderArgs) -> io::Result<()> {
     let config = Config::default();
 
     let mut md_content = String::new();
@@ -23,9 +27,9 @@ fn cmd_render(args: Args) -> io::Result<()> {
     File::create(&args.output_path).and_then(|mut fh| fh.write_all(&html_content.as_bytes()))
 }
 
-fn cmd_sync(args: Args) -> io::Result<()> {
-    println!("{:?}", args);
-    unimplemented!();
+fn cmd_sync(_args: SyncArgs) -> io::Result<()> {
+    let config = Config::default();
+    sync::sync(&config)
 }
 
 fn cmd_info(matches: &ArgMatches<'static>) -> io::Result<()> {
@@ -39,8 +43,8 @@ fn main() -> io::Result<()> {
     let matches = app::create().get_matches();
 
     match matches.subcommand() {
-        ("render", Some(matches)) => cmd_render(Args::try_from(matches)?),
-        ("sync", Some(matches)) => cmd_sync(Args::try_from(matches)?),
+        ("render", Some(matches)) => cmd_render(RenderArgs::try_from(matches)?),
+        ("sync", Some(matches)) => cmd_sync(SyncArgs::try_from(matches)?),
         ("info", Some(matches)) => cmd_info(matches),
         _ => unimplemented!(),
     }
