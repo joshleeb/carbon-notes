@@ -50,6 +50,11 @@ pub(crate) fn create() -> App<'static, 'static> {
                 ),
         )
         .subcommand(
+            SubCommand::with_name("sync")
+                // TODO: app::sync better about message
+                .about("Sync a directory to it's rendered equivalent"),
+        )
+        .subcommand(
             SubCommand::with_name("info")
                 .about("Display useful information")
                 .subcommand(

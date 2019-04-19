@@ -7,10 +7,8 @@ publish = false
 
 [dependencies]
 clap = "2.32.0"
+dirs = "1.0.5"
+maud = "0.20.0"
 pulldown-cmark = "0.4.0"
 regex = "1.1.5"
 syntect = "3.2.0"
-maud = "0.20.0"
-serde = { version = "1.0.90", features = ["derive"] }
-dirs = "1.0.5"
-toml = "0.5.0"
