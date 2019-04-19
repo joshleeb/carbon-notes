@@ -3,7 +3,7 @@
 use self::{
     app::{RenderArgs, SyncArgs},
     config::Config,
-    stylesheet::Stylesheet,
+    render::stylesheet::Stylesheet,
 };
 use clap::ArgMatches;
 use std::{
@@ -15,9 +15,7 @@ use std::{
 mod app;
 mod config;
 mod info;
-mod mathjax;
 mod render;
-mod stylesheet;
 mod sync;
 
 fn cmd_render(args: RenderArgs) -> io::Result<()> {

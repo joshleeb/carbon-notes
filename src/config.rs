@@ -1,4 +1,4 @@
-use crate::mathjax::MathjaxPolicy;
+use crate::render::mathjax::MathjaxPolicy;
 use std::path::PathBuf;
 
 #[derive(Debug, Default)]

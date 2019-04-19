@@ -1,11 +1,15 @@
 use self::{
     code::{CodeBlock, SyntaxHighlighter},
+    mathjax::MathjaxPolicy,
+    stylesheet::Stylesheet,
     template::Template,
 };
-use crate::{mathjax::MathjaxPolicy, stylesheet::Stylesheet};
 use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
 use std::io;
+
+pub(crate) mod mathjax;
+pub(crate) mod stylesheet;
 
 mod code;
 mod template;
