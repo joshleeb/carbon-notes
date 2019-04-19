@@ -63,6 +63,11 @@ for all the people
     it is obvious a note won't be rendered as standalone but as part of another
     note.
 
+### Longer Term Features
+
+- Supporting multiple markup source formats
+    - Org Mode, Restructured Text, Creole (Wikitext Markup)
+
 ## Design
 
 > Keep in mind [12 Factor CLI Tools][12-factor-cli-tools] when designing the
