@@ -47,7 +47,7 @@ pub(crate) fn render(
                 state.header = Some(atx_level);
             }
             Event::Start(Tag::CodeBlock(language)) => {
-                state.code_block = Some(CodeBlock::new(language));
+                state.code_block = Some(CodeBlock::with_language(language));
             }
             Event::Text(text) => {
                 if let Some(atx_level) = state.header {

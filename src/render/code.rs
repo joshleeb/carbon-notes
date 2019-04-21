@@ -28,10 +28,10 @@ impl SyntaxHighlighter {
     pub(crate) fn render(&self, block: &CodeBlock) -> io::Result<Event> {
         let syntax = self
             .syntax_set
-            .find_syntax_by_token(&block.lang)
+            .find_syntax_by_token(&block.language_token)
             .ok_or(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("unknown syntax highlighting token {}", block.lang),
+                format!("unknown syntax highlighting token {}", block.language_token),
             ))?;
 
         let html = highlighted_html_for_string(&block.code, &self.syntax_set, &syntax, &self.theme);
@@ -40,14 +40,27 @@ impl SyntaxHighlighter {
 }
 
 pub(crate) struct CodeBlock {
-    lang: String,
+    language_token: String,
     code: String,
 }
 
-impl CodeBlock {
-    pub(crate) fn new<S: ToString>(lang: S) -> Self {
+impl Default for CodeBlock {
+    fn default() -> Self {
         Self {
-            lang: lang.to_string(),
+            language_token: "txt".into(),
+            code: String::new(),
+        }
+    }
+}
+
+impl CodeBlock {
+    pub(crate) fn with_language<S: ToString>(language_token: S) -> Self {
+        let token = language_token.to_string();
+        if token.is_empty() {
+            return Self::default();
+        }
+        Self {
+            language_token: token,
             code: String::new(),
         }
     }
