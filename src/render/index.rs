@@ -1,12 +1,14 @@
 use crate::render::{mathjax::MathjaxPolicy, stylesheet::Stylesheet, template::Template};
 use maud::{html, Markup, Render};
 use std::{
+    cmp::{Ord, Ordering, PartialOrd},
     fs::{DirEntry, FileType},
     path::{Path, PathBuf},
 };
 
 const INDEX_FILE_NAME: &str = "index.html";
 
+#[derive(Eq)]
 pub(crate) struct IndexEntry {
     source_path: PathBuf,
     render_path: Option<PathBuf>,
@@ -34,6 +36,24 @@ impl IndexEntry {
                 }
             })
             .unwrap_or(self.source_path.clone())
+    }
+}
+
+impl Ord for IndexEntry {
+    fn cmp(&self, other: &IndexEntry) -> Ordering {
+        self.source_path.cmp(&other.source_path)
+    }
+}
+
+impl PartialOrd for IndexEntry {
+    fn partial_cmp(&self, other: &IndexEntry) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for IndexEntry {
+    fn eq(&self, other: &IndexEntry) -> bool {
+        self.source_path == other.source_path && self.file_type == other.file_type
     }
 }
 

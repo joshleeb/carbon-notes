@@ -65,6 +65,7 @@ impl SyncOpts {
                 }
             }
 
+            index_entries.sort();
             let index = Index::new(&render_dir, &index_entries, &self.stylesheet);
             File::create(&index.path())
                 .and_then(|mut fh| fh.write_all(index.to_string().as_bytes()))?;
