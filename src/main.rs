@@ -3,7 +3,7 @@
 use self::{
     app::{RenderArgs, SyncArgs},
     config::Config,
-    render::{stylesheet::Stylesheet, RenderOpts},
+    render::{code::SyntaxHighlighter, stylesheet::Stylesheet, RenderOpts},
     sync::SyncOpts,
 };
 use clap::ArgMatches;
@@ -25,14 +25,18 @@ fn cmd_render(args: RenderArgs) -> io::Result<()> {
     let mut markdown = String::new();
     File::open(&args.input_path).and_then(|mut fh| fh.read_to_string(&mut markdown))?;
 
+    // TODO: main::cmd_render stylesheet to be moved to RenderOpts::TryFrom<Config>
     let stylesheet_path = config.render.stylesheet_path.as_ref();
     let stylesheet = stylesheet_path
         .map(|path| Stylesheet::new(path, config.render.should_inline_stylesheet))
         .transpose()?;
 
+    // TODO: main::cmd_render syntax_highlighter to be moved to RenderOpts::TryFrom<Config>
+    let syntax_highlighter = SyntaxHighlighter::with_theme(&config.render.code_block_theme)?;
+
     let render = RenderOpts::new(
         &stylesheet,
-        &config.render.code_block_theme,
+        &syntax_highlighter,
         &config.render.mathjax_policy,
     );
     let html = render.render(&markdown)?;

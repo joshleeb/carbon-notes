@@ -8,10 +8,10 @@ use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
 use std::io;
 
+pub(crate) mod code;
 pub(crate) mod mathjax;
 pub(crate) mod stylesheet;
 
-mod code;
 mod template;
 
 type ParserOptions = pulldown_cmark::Options;
@@ -28,32 +28,29 @@ struct RenderState {
 
 pub(crate) struct RenderOpts<'a> {
     stylesheet: &'a Option<Stylesheet>,
-    code_block_theme: &'a str,
+    syntax_highlighter: &'a SyntaxHighlighter,
     mathjax_policy: &'a MathjaxPolicy,
 }
 
 impl<'a> RenderOpts<'a> {
     pub(crate) fn new(
         stylesheet: &'a Option<Stylesheet>,
-        code_block_theme: &'a str,
+        syntax_highlighter: &'a SyntaxHighlighter,
         mathjax_policy: &'a MathjaxPolicy,
     ) -> Self {
         Self {
             stylesheet,
-            code_block_theme,
+            syntax_highlighter,
             mathjax_policy,
         }
     }
 
     pub(crate) fn render(&self, markdown: &str) -> io::Result<String> {
-        // TODO: RenderOpts::render look into if SyntaxHighlighter can be reused
-        let syntax_highlighter = SyntaxHighlighter::with_theme(&self.code_block_theme)?;
+        // TODO: RenderOpts::render should include broken link callback in md_parser
+        let md_parser = Parser::new_with_broken_link_callback(markdown, parser_opts(), None);
 
         let mut state = RenderState::default();
         let mut events = vec![];
-
-        // TODO: RenderOpts::render should include broken link callback in md_parser
-        let md_parser = Parser::new_with_broken_link_callback(markdown, parser_opts(), None);
 
         for event in md_parser {
             match event {
@@ -79,7 +76,7 @@ impl<'a> RenderOpts<'a> {
                 }
                 Event::End(Tag::CodeBlock(_)) => {
                     if let Some(code_block) = state.code_block {
-                        events.push(syntax_highlighter.render(&code_block)?);
+                        events.push(self.syntax_highlighter.render(&code_block)?);
                         state.code_block = None;
                     }
                 }

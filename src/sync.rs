@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    render::{mathjax::MathjaxPolicy, stylesheet::Stylesheet, RenderOpts},
+    render::{code::SyntaxHighlighter, mathjax::MathjaxPolicy, stylesheet::Stylesheet, RenderOpts},
 };
 use globset::GlobSet;
 use std::{
@@ -15,9 +15,9 @@ pub(crate) struct SyncOpts {
     source_dir: PathBuf,
     render_dir: PathBuf,
     ignore_set: GlobSet,
-    stylesheet: Option<Stylesheet>,
-    code_block_theme: String,
     mathjax_policy: MathjaxPolicy,
+    stylesheet: Option<Stylesheet>,
+    syntax_highlighter: SyntaxHighlighter,
 }
 
 impl SyncOpts {
@@ -59,7 +59,7 @@ impl SyncOpts {
     fn render_file(&self, path: &Path) -> io::Result<String> {
         let render = RenderOpts::new(
             &self.stylesheet,
-            &self.code_block_theme,
+            &self.syntax_highlighter,
             &self.mathjax_policy,
         );
 
@@ -116,13 +116,15 @@ impl TryFrom<Config> for SyncOpts {
             .map(|path| Stylesheet::new(path, config.render.should_inline_stylesheet))
             .transpose()?;
 
+        let syntax_highlighter = SyntaxHighlighter::with_theme(&config.render.code_block_theme)?;
+
         Ok(Self {
             source_dir: config.sync.source_dir,
             render_dir: config.sync.render_dir,
             ignore_set: config.sync.ignore,
-            stylesheet,
-            code_block_theme: config.render.code_block_theme,
             mathjax_policy: config.render.mathjax_policy,
+            stylesheet,
+            syntax_highlighter,
         })
     }
 }
