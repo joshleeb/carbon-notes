@@ -3,7 +3,8 @@
 use self::{
     app::{RenderArgs, SyncArgs},
     config::Config,
-    render::stylesheet::Stylesheet,
+    render::{stylesheet::Stylesheet, RenderOpts},
+    sync::SyncOpts,
 };
 use clap::ArgMatches;
 use std::{
@@ -19,29 +20,28 @@ mod render;
 mod sync;
 
 fn cmd_render(args: RenderArgs) -> io::Result<()> {
-    let config = Config::default().render;
+    let config = Config::default();
 
     let mut markdown = String::new();
     File::open(&args.input_path).and_then(|mut fh| fh.read_to_string(&mut markdown))?;
 
-    let stylesheet = config
-        .stylesheet_path
-        .as_ref()
-        .map(|path| Stylesheet::from_config(path, config.should_inline_stylesheet))
+    let stylesheet_path = config.render.stylesheet_path.as_ref();
+    let stylesheet = stylesheet_path
+        .map(|path| Stylesheet::new(path, config.render.should_inline_stylesheet))
         .transpose()?;
 
-    let rendered_html = render::render(
-        &markdown,
+    let render = RenderOpts::new(
         &stylesheet,
-        &config.code_block_theme,
-        &config.mathjax_policy,
-    )?;
-    File::create(&args.output_path).and_then(|mut fh| fh.write_all(&rendered_html.as_bytes()))
+        &config.render.code_block_theme,
+        &config.render.mathjax_policy,
+    );
+    let html = render.render(&markdown)?;
+    File::create(&args.output_path).and_then(|mut fh| fh.write_all(&html.as_bytes()))
 }
 
 fn cmd_sync(_args: SyncArgs) -> io::Result<()> {
     let config = Config::default();
-    sync::sync(&config)
+    SyncOpts::try_from(config)?.sync()
 }
 
 fn cmd_info(matches: &ArgMatches<'static>) -> io::Result<()> {

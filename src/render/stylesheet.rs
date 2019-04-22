@@ -11,7 +11,7 @@ pub(crate) enum Stylesheet {
 }
 
 impl Stylesheet {
-    pub(crate) fn from_config(path: &Path, should_inline: bool) -> io::Result<Self> {
+    pub(crate) fn new(path: &Path, should_inline: bool) -> io::Result<Self> {
         if !should_inline {
             return Ok(Stylesheet::Link(path.into()));
         }

@@ -26,69 +26,78 @@ struct RenderState {
     code_block: Option<CodeBlock>,
 }
 
-/// Renders Markdown to HTML.
-pub(crate) fn render(
-    markdown: &str,
-    stylesheet: &Option<Stylesheet>,
-    code_block_theme: &str,
-    mathjax: &MathjaxPolicy,
-) -> io::Result<String> {
-    let syntax_highlighter = SyntaxHighlighter::with_theme(&code_block_theme)?;
-    let parser_opts = get_parser_opts();
-    let md_parser =
-        Parser::new_with_broken_link_callback(markdown, parser_opts, Some(&handle_broken_link));
+pub(crate) struct RenderOpts<'a> {
+    stylesheet: &'a Option<Stylesheet>,
+    code_block_theme: &'a str,
+    mathjax_policy: &'a MathjaxPolicy,
+}
 
-    let mut state = RenderState::default();
-    let mut events = vec![];
-
-    for event in md_parser {
-        match event {
-            Event::Start(Tag::Header(atx_level)) => {
-                state.header = Some(atx_level);
-            }
-            Event::Start(Tag::CodeBlock(language)) => {
-                state.code_block = Some(CodeBlock::with_language(language));
-            }
-            Event::Text(text) => {
-                if let Some(atx_level) = state.header {
-                    if state.title.is_none() && atx_level == 1 {
-                        state.title = Some(text.to_string());
-                    }
-                    events.push(render_header_start(atx_level, &text));
-                    state.header = None;
-                }
-                if let Some(ref mut code_block) = state.code_block {
-                    code_block.push(&text);
-                } else {
-                    events.push(Event::Text(text));
-                }
-            }
-            Event::End(Tag::CodeBlock(_)) => {
-                if let Some(code_block) = state.code_block {
-                    events.push(syntax_highlighter.render(&code_block)?);
-                    state.code_block = None;
-                }
-            }
-            ev => events.push(ev),
+impl<'a> RenderOpts<'a> {
+    pub(crate) fn new(
+        stylesheet: &'a Option<Stylesheet>,
+        code_block_theme: &'a str,
+        mathjax_policy: &'a MathjaxPolicy,
+    ) -> Self {
+        Self {
+            stylesheet,
+            code_block_theme,
+            mathjax_policy,
         }
     }
 
-    let mut html_buf = String::new();
-    html::push_html(&mut html_buf, events.into_iter());
+    pub(crate) fn render(&self, markdown: &str) -> io::Result<String> {
+        // TODO: RenderOpts::render look into if SyntaxHighlighter can be reused
+        let syntax_highlighter = SyntaxHighlighter::with_theme(&self.code_block_theme)?;
 
-    let tmpl = Template {
-        content: &html_buf,
-        title: state.title.as_ref().map(|x| &**x),
-        stylesheet,
-        mathjax,
-    };
-    Ok(tmpl.to_string())
-}
+        let mut state = RenderState::default();
+        let mut events = vec![];
 
-// TODO: render::handle_broken_link should be implemented
-fn handle_broken_link(url: &str, title: &str) -> Option<(String, String)> {
-    eprintln!("found broken link with: {}, {}", url, title);
-    None
+        // TODO: RenderOpts::render should include broken link callback in md_parser
+        let md_parser = Parser::new_with_broken_link_callback(markdown, parser_opts(), None);
+
+        for event in md_parser {
+            match event {
+                Event::Start(Tag::Header(atx_level)) => {
+                    state.header = Some(atx_level);
+                }
+                Event::Start(Tag::CodeBlock(language)) => {
+                    state.code_block = Some(CodeBlock::with_language(language));
+                }
+                Event::Text(text) => {
+                    if let Some(atx_level) = state.header {
+                        if state.title.is_none() && atx_level == 1 {
+                            state.title = Some(text.to_string());
+                        }
+                        events.push(render_header_start(atx_level, &text));
+                        state.header = None;
+                    }
+                    if let Some(ref mut code_block) = state.code_block {
+                        code_block.push(&text);
+                    } else {
+                        events.push(Event::Text(text));
+                    }
+                }
+                Event::End(Tag::CodeBlock(_)) => {
+                    if let Some(code_block) = state.code_block {
+                        events.push(syntax_highlighter.render(&code_block)?);
+                        state.code_block = None;
+                    }
+                }
+                ev => events.push(ev),
+            }
+        }
+
+        let mut html_buf = String::new();
+        html::push_html(&mut html_buf, events.into_iter());
+
+        let tmpl = Template {
+            content: &html_buf,
+            title: state.title.as_ref().map(|x| &**x),
+            stylesheet: self.stylesheet,
+            mathjax: &self.mathjax_policy,
+        };
+        Ok(tmpl.to_string())
+    }
 }
 
 /// Render a header start event or an HTML tag for the header with an ID.
@@ -116,7 +125,7 @@ fn render_header_start(atx_level: i32, raw_text: &str) -> Event<'static> {
 }
 
 #[inline]
-fn get_parser_opts() -> ParserOptions {
+fn parser_opts() -> ParserOptions {
     let mut opts = pulldown_cmark::Options::empty();
     opts.insert(ParserOptions::ENABLE_TABLES);
     opts.insert(ParserOptions::ENABLE_FOOTNOTES);
