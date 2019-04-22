@@ -5,10 +5,10 @@ use crate::render::{
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 
 pub(crate) struct Template<'a> {
-    pub content: &'a str,
-    pub title: Option<&'a str>,
+    pub content: Markup,
+    pub title: &'a Option<String>,
     pub stylesheet: &'a Option<Stylesheet>,
-    pub mathjax: &'a MathjaxPolicy,
+    pub mathjax_policy: &'a MathjaxPolicy,
 }
 
 impl<'a> ToString for Template<'a> {
@@ -23,7 +23,7 @@ fn page(ctx: &Template) -> Markup {
         html {
             (head(ctx))
             body {
-                (PreEscaped(ctx.content))
+                (ctx.content)
                 (footer(ctx))
             }
         }
@@ -48,7 +48,7 @@ fn head(ctx: &Template) -> Markup {
 fn footer(ctx: &Template) -> Markup {
     html! {
         footer {
-            @if ctx.mathjax.inclusion() {
+            @if ctx.mathjax_policy.inclusion() {
                 script type="text/x-mathjax-config" { (PreEscaped(MATHJAX_CONFIG)) }
                 script type="text/javascript"
                     src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" { }

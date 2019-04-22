@@ -28,6 +28,8 @@ impl Default for RenderConfig {
     }
 }
 
+// TODO: config::SyncConfig should allow configuring a delete option which is to be implemented
+//  - This would delete notes and dirs from the render dir that no longer exist in the source dir
 #[derive(Debug)]
 pub(crate) struct SyncConfig {
     pub source_dir: PathBuf,

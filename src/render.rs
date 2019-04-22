@@ -1,15 +1,17 @@
 use self::{
     code::{CodeBlock, SyntaxHighlighter},
     mathjax::MathjaxPolicy,
+    note::Note,
     stylesheet::Stylesheet,
-    template::Template,
 };
 use pulldown_cmark::{html, Event, Parser, Tag};
 use regex::Regex;
 use std::io;
 
 pub(crate) mod code;
+pub(crate) mod index;
 pub(crate) mod mathjax;
+pub(crate) mod note;
 pub(crate) mod stylesheet;
 
 mod template;
@@ -84,16 +86,10 @@ impl<'a> RenderOpts<'a> {
             }
         }
 
-        let mut html_buf = String::new();
-        html::push_html(&mut html_buf, events.into_iter());
-
-        let tmpl = Template {
-            content: &html_buf,
-            title: state.title.as_ref().map(|x| &**x),
-            stylesheet: self.stylesheet,
-            mathjax: &self.mathjax_policy,
-        };
-        Ok(tmpl.to_string())
+        let mut html = String::new();
+        html::push_html(&mut html, events.into_iter());
+        let note = Note::new(&html, &state.title, self.stylesheet, self.mathjax_policy);
+        Ok(note.to_string())
     }
 }
 

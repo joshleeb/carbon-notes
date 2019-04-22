@@ -14,7 +14,7 @@ pub(crate) const MATHJAX_CONFIG: &str = "
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) enum MathjaxPolicy {
     Always,
-    // Never,
+    Never,
 }
 
 // TODO: config::MathjaxPolicy implement the `Auto` policy
