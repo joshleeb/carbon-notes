@@ -12,7 +12,7 @@ use globset::GlobSet;
 use std::{
     collections::VecDeque,
     convert::TryFrom,
-    fs::{self, DirEntry, File},
+    fs::{self, DirEntry, File, FileType},
     io::{self, Read, Write},
     path::{Path, PathBuf},
 };
@@ -35,43 +35,52 @@ impl SyncOpts {
         let mut unseen_dirs = VecDeque::new();
         unseen_dirs.push_back(self.source_dir.clone());
 
-        while let Some(ref focus_dir) = unseen_dirs.pop_front() {
+        while let Some(ref source_dir) = unseen_dirs.pop_front() {
             // TODO: sync::sync check if index_entries with_capacity is better for performance
             //  - with size_hint from self.dir_contents
             let mut index_entries = vec![];
-            let render_dir = self.render_dir_path(&focus_dir)?;
 
-            for entry in self.dir_contents(focus_dir)? {
-                let ft = entry.file_type()?;
-                if ft.is_file() {
-                    if !SyncOpts::should_render(&entry.path()) {
+            for entry in self.dir_contents(source_dir)? {
+                let file_type = entry.file_type()?;
+                let output_path = self.render_path(&entry.path(), Some(&file_type))?;
+
+                if file_type.is_file() {
+                    if !should_render_path(&entry.path()) {
                         index_entries.push(IndexEntry::new(&entry, None));
                         continue;
                     }
 
-                    let render_path = self.render_dir_path(&entry.path())?.with_extension("html");
                     let html = self.render_file(&entry.path())?;
-                    File::create(&render_path).and_then(|mut fh| fh.write_all(html.as_bytes()))?;
-                    index_entries.push(IndexEntry::new(&entry, Some(render_path)));
+                    File::create(&output_path).and_then(|mut fh| fh.write_all(html.as_bytes()))?;
+                    index_entries.push(IndexEntry::new(&entry, Some(output_path)));
                     println!("{}", entry.path().display());
-                } else if ft.is_dir() {
+                } else if file_type.is_dir() {
                     unseen_dirs.push_back(entry.path());
 
-                    let render_path = self.render_dir_path(&entry.path())?;
-                    if !render_path.exists() {
-                        fs::create_dir(&render_path)?;
+                    if !output_path.exists() {
+                        fs::create_dir(&output_path)?;
                     }
-                    index_entries.push(IndexEntry::new(&entry, Some(render_path)));
+                    index_entries.push(IndexEntry::new(&entry, Some(output_path)));
                 }
             }
 
             index_entries.sort();
-            let index = Index::new(&render_dir, &index_entries, &self.stylesheet);
+            let output_dir = self.render_path(&source_dir, None)?;
+            let index = Index::new(&source_dir, &output_dir, &index_entries, &self.stylesheet);
             File::create(&index.path())
                 .and_then(|mut fh| fh.write_all(index.to_string().as_bytes()))?;
         }
-
         Ok(())
+    }
+
+    fn render_path(&self, path: &Path, ft: Option<&FileType>) -> io::Result<PathBuf> {
+        replace_path_prefix(&self.source_dir, &self.render_dir, path).map(|p| {
+            if ft.is_some() && ft.unwrap().is_file() {
+                p.with_extension("html")
+            } else {
+                p
+            }
+        })
     }
 
     fn render_file(&self, path: &Path) -> io::Result<String> {
@@ -104,25 +113,6 @@ impl SyncOpts {
             .filter_map(Result::ok)
             .filter(move |entry| !self.ignore_set.is_match(entry.path())))
     }
-
-    fn render_dir_path(&self, path: &Path) -> io::Result<PathBuf> {
-        path.strip_prefix(&self.source_dir)
-            .map(|ext_path| self.render_dir.join(ext_path))
-            .map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!(
-                        "cannot strip prefix {} of path {}",
-                        self.source_dir.display(),
-                        path.display()
-                    ),
-                )
-            })
-    }
-
-    fn should_render(path: &Path) -> bool {
-        path.extension().unwrap_or_default() == "md"
-    }
 }
 
 impl TryFrom<Config> for SyncOpts {
@@ -145,4 +135,23 @@ impl TryFrom<Config> for SyncOpts {
             syntax_highlighter,
         })
     }
+}
+
+fn should_render_path(path: &Path) -> bool {
+    path.extension().unwrap_or_default() == "md"
+}
+
+fn replace_path_prefix(prefix: &Path, subst: &Path, path: &Path) -> io::Result<PathBuf> {
+    path.strip_prefix(prefix)
+        .map(|remaining| subst.join(remaining))
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "cannot strip prefix {} of path {}",
+                    prefix.display(),
+                    path.display()
+                ),
+            )
+        })
 }

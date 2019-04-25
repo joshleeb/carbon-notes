@@ -39,6 +39,18 @@ impl IndexEntry {
     }
 }
 
+impl Render for IndexEntry {
+    fn render(&self) -> Markup {
+        html! {
+            li {
+                a href=(self.path().display()) {
+                    (self.source_path.display())
+                }
+            }
+        }
+    }
+}
+
 impl Ord for IndexEntry {
     fn cmp(&self, other: &IndexEntry) -> Ordering {
         self.source_path.cmp(&other.source_path)
@@ -57,50 +69,42 @@ impl PartialEq for IndexEntry {
     }
 }
 
-impl Render for IndexEntry {
-    fn render(&self) -> Markup {
-        html! {
-            li {
-                a href=(self.path().display()) {
-                    (self.source_path.display())
-                }
-            }
-        }
-    }
-}
-
 pub(crate) struct Index<'a> {
-    render_dir: &'a Path,
+    source_path: &'a Path,
+    output_path: &'a Path,
     entries: &'a Vec<IndexEntry>,
     stylesheet: &'a Option<Stylesheet>,
 }
 
 impl<'a> Index<'a> {
     pub(crate) fn new(
-        render_dir: &'a Path,
+        source_path: &'a Path,
+        output_path: &'a Path,
         entries: &'a Vec<IndexEntry>,
         stylesheet: &'a Option<Stylesheet>,
     ) -> Self {
         Self {
-            render_dir,
+            source_path,
+            output_path,
             entries,
             stylesheet,
         }
     }
 
     pub(crate) fn path(&self) -> PathBuf {
-        self.render_dir.join(INDEX_FILE_NAME)
+        self.output_path.join(INDEX_FILE_NAME)
     }
 
     // TODO: render::index::title implement.
     fn title(&self) -> String {
-        self.render_dir.display().to_string()
+        format!("Index: {}", self.source_path.display().to_string())
     }
 }
 
 impl<'a> Render for Index<'a> {
     fn render(&self) -> Markup {
         html! {
+            h1 { (self.title()) }
             ul {
                 @for entry in self.entries {
                     (entry)
