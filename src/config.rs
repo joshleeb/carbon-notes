@@ -20,7 +20,7 @@ impl Default for RenderConfig {
     fn default() -> Self {
         let home_dir = dirs::home_dir().unwrap();
         Self {
-            stylesheet_path: Some(home_dir.join(".config/carbon/github.css")),
+            stylesheet_path: Some(home_dir.join("code/carbon-notes/style/github.css")),
             should_inline_stylesheet: false,
             code_block_theme: String::from("base16-ocean.dark"),
             mathjax_policy: MathjaxPolicy::Always,
