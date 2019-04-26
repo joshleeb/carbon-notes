@@ -1,8 +1,5 @@
-use crate::render::{
-    mathjax::{MathjaxPolicy, MATHJAX_CONFIG},
-    stylesheet::Stylesheet,
-};
-use maud::{html, Markup, PreEscaped, DOCTYPE};
+use crate::render::{mathjax::MathjaxPolicy, stylesheet::Stylesheet};
+use maud::{html, Markup, DOCTYPE};
 
 pub(crate) struct Template<'a> {
     pub content: Markup,
@@ -44,15 +41,8 @@ fn head(ctx: &Template) -> Markup {
     }
 }
 
-// TODO: template::footer should have mathjax::MathjaxPolicy rendered by the maud::Rendered trait
 fn footer(ctx: &Template) -> Markup {
     html! {
-        footer {
-            @if ctx.mathjax_policy.inclusion() {
-                script type="text/x-mathjax-config" { (PreEscaped(MATHJAX_CONFIG)) }
-                script type="text/javascript"
-                    src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" { }
-            }
-        }
+        footer { (ctx.mathjax_policy) }
     }
 }
