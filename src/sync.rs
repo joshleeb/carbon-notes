@@ -12,37 +12,38 @@ use globset::GlobSet;
 use std::{
     collections::VecDeque,
     convert::TryFrom,
-    fs::{self, DirEntry, File, FileType},
+    fs::{self, DirEntry, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 
 pub(crate) struct SyncOpts {
-    source_dir: PathBuf,
-    render_dir: PathBuf,
-    ignore_set: GlobSet,
-    mathjax_policy: MathjaxPolicy,
-    stylesheet: Option<Stylesheet>,
-    syntax_highlighter: SyntaxHighlighter,
+    /// Root source directory containing notes to be synced.
+    pub src_root: PathBuf,
+    /// Root destination directory which nodes from `src` will be synced to.
+    pub dst_root: PathBuf,
+    pub ignore_set: GlobSet,
+    pub mathjax_policy: MathjaxPolicy,
+    pub stylesheet: Option<Stylesheet>,
+    pub syntax_highlighter: SyntaxHighlighter,
 }
 
 impl SyncOpts {
+    // TODO: SyncOpts::sync incremental syncing.
     pub(crate) fn sync(&self) -> io::Result<()> {
-        if !self.render_dir.exists() {
-            fs::create_dir_all(&self.render_dir)?;
+        if !self.dst_root.exists() {
+            fs::create_dir_all(&self.dst_root)?;
         }
 
         let mut unseen_dirs = VecDeque::new();
-        unseen_dirs.push_back(self.source_dir.clone());
+        unseen_dirs.push_back(self.src_root.clone());
 
-        while let Some(ref source_dir) = unseen_dirs.pop_front() {
-            // TODO: sync::sync check if index_entries with_capacity is better for performance
-            //  - with size_hint from self.dir_contents
+        while let Some(ref src_dir) = unseen_dirs.pop_front() {
+            let dst_dir = self.render_path(src_dir)?;
             let mut index_entries = vec![];
 
-            for entry in self.dir_contents(source_dir)? {
+            for entry in self.dir_contents(src_dir)? {
                 let file_type = entry.file_type()?;
-                let output_path = self.render_path(&entry.path(), Some(&file_type))?;
 
                 if file_type.is_file() {
                     if !should_render_path(&entry.path()) {
@@ -50,37 +51,36 @@ impl SyncOpts {
                         continue;
                     }
 
-                    let html = self.render_file(&entry.path())?;
-                    File::create(&output_path).and_then(|mut fh| fh.write_all(html.as_bytes()))?;
-                    index_entries.push(IndexEntry::new(&entry, Some(output_path)));
-                    println!("{}", entry.path().display());
-                } else if file_type.is_dir() {
-                    unseen_dirs.push_back(entry.path());
+                    let src_file = entry.path();
+                    let dst_file = self.render_path(&src_file)?.with_extension("html");
+                    println!("syncing: {}", src_file.display());
 
-                    if !output_path.exists() {
-                        fs::create_dir(&output_path)?;
+                    let html = self.render_file(&src_file)?;
+                    File::create(&dst_file).and_then(|mut fh| fh.write_all(html.as_bytes()))?;
+                    index_entries.push(IndexEntry::new(&entry, Some(dst_file)));
+                } else if file_type.is_dir() {
+                    let src_dir = entry.path();
+                    let dst_dir = self.render_path(&src_dir)?;
+
+                    unseen_dirs.push_back(src_dir);
+
+                    if !dst_dir.exists() {
+                        fs::create_dir(&dst_dir)?;
                     }
-                    index_entries.push(IndexEntry::new(&entry, Some(output_path)));
+                    index_entries.push(IndexEntry::new(&entry, Some(dst_dir)));
                 }
             }
 
             index_entries.sort();
-            let output_dir = self.render_path(&source_dir, None)?;
-            let index = Index::new(&source_dir, &output_dir, &index_entries, &self.stylesheet);
+            let index = Index::new(self, &src_dir, &dst_dir, &index_entries);
             File::create(&index.path())
                 .and_then(|mut fh| fh.write_all(index.to_string().as_bytes()))?;
         }
         Ok(())
     }
 
-    fn render_path(&self, path: &Path, ft: Option<&FileType>) -> io::Result<PathBuf> {
-        replace_path_prefix(&self.source_dir, &self.render_dir, path).map(|p| {
-            if ft.is_some() && ft.unwrap().is_file() {
-                p.with_extension("html")
-            } else {
-                p
-            }
-        })
+    fn render_path(&self, path: &Path) -> io::Result<PathBuf> {
+        replace_path_prefix(&self.src_root, &self.dst_root, path)
     }
 
     fn render_file(&self, path: &Path) -> io::Result<String> {
@@ -127,8 +127,8 @@ impl TryFrom<Config> for SyncOpts {
         let syntax_highlighter = SyntaxHighlighter::with_theme(&config.render.code_block_theme)?;
 
         Ok(Self {
-            source_dir: config.sync.source_dir,
-            render_dir: config.sync.render_dir,
+            src_root: config.sync.notes_dir,
+            dst_root: config.sync.render_dir,
             ignore_set: config.sync.ignore,
             mathjax_policy: config.render.mathjax_policy,
             stylesheet,

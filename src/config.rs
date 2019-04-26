@@ -32,12 +32,19 @@ impl Default for RenderConfig {
 //  - This would delete notes and dirs from the render dir that no longer exist in the source dir
 #[derive(Debug)]
 pub(crate) struct SyncConfig {
-    pub source_dir: PathBuf,
+    pub notes_dir: PathBuf,
     pub render_dir: PathBuf,
     pub ignore: GlobSet,
 }
 
-const GLOB_IGNORE: [&str; 4] = ["_rendered", ".directory", ".dropbox", ".dropbox.cache"];
+const GLOB_IGNORE: &[&str] = &[
+    "_rendered",
+    ".directory",
+    ".dropbox",
+    ".dropbox.cache",
+    "target",
+    "*.tar.gz",
+];
 
 impl Default for SyncConfig {
     fn default() -> Self {
@@ -52,7 +59,7 @@ impl Default for SyncConfig {
         }
 
         Self {
-            source_dir: home_dir.join("Dropbox/notes"),
+            notes_dir: home_dir.join("Dropbox/notes"),
             render_dir: home_dir.join("Dropbox/notes/_rendered"),
             ignore: ignore.build().unwrap(),
         }
