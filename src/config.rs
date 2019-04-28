@@ -35,15 +35,18 @@ pub(crate) struct SyncConfig {
     pub notes_dir: PathBuf,
     pub render_dir: PathBuf,
     pub ignore: GlobSet,
+    pub incremental: bool,
 }
 
 const GLOB_IGNORE: &[&str] = &[
-    "_rendered",
+    "*.tar.gz",
     ".directory",
     ".dropbox",
     ".dropbox.cache",
+    ".git",
+    ".mypy_cache",
+    "_rendered",
     "target",
-    "*.tar.gz",
 ];
 
 impl Default for SyncConfig {
@@ -62,6 +65,7 @@ impl Default for SyncConfig {
             notes_dir: home_dir.join("Dropbox/notes"),
             render_dir: home_dir.join("Dropbox/notes/_rendered"),
             ignore: ignore.build().unwrap(),
+            incremental: true,
         }
     }
 }

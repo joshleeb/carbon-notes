@@ -91,7 +91,7 @@ impl IndexEntry {
     // TODO: IndexEntry::path should not need to clone except for directory.
     fn path(&self) -> PathBuf {
         match (&self.item.ty, self.is_rendered) {
-            (ItemType::File, true) => self.item.render.clone(),
+            (ItemType::File { .. }, true) => self.item.render.clone(),
             (ItemType::Directory, _) => self.item.render.join(INDEX_FILE_NAME),
             _ => self.item.source.clone(),
         }

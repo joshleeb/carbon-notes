@@ -22,7 +22,7 @@ impl Item {
         let source = entry.path();
         let ty = ItemType::try_from(entry)?;
         let render = sync::render_path(&source, source_root, render_root).map(|path| match ty {
-            ItemType::File => path.with_extension("html"),
+            ItemType::File { .. } => path.with_extension("html"),
             _ => path,
         })?;
 
@@ -31,6 +31,13 @@ impl Item {
             render,
             ty: ItemType::try_from(entry)?,
         })
+    }
+
+    pub(crate) fn should_render(&self) -> bool {
+        match self.ty {
+            ItemType::File { .. } => self.source.extension().unwrap_or_default() == "md",
+            _ => false,
+        }
     }
 }
 
@@ -45,16 +52,15 @@ impl TryFrom<&DirEntry> for ItemType {
     type Error = io::Error;
 
     fn try_from(entry: &DirEntry) -> Result<Self, Self::Error> {
-        entry.file_type().map(|ft| {
-            if ft.is_file() {
-                ItemType::File
-            } else if ft.is_dir() {
-                ItemType::Directory
-            } else if ft.is_symlink() {
-                ItemType::Symlink
-            } else {
-                unreachable!()
-            }
-        })
+        let ft = entry.file_type()?;
+        if ft.is_file() {
+            Ok(ItemType::File)
+        } else if ft.is_dir() {
+            Ok(ItemType::Directory)
+        } else if ft.is_symlink() {
+            Ok(ItemType::Symlink)
+        } else {
+            unreachable!()
+        }
     }
 }

@@ -9,6 +9,7 @@ use crate::{
     },
 };
 use globset::GlobSet;
+use hash::ItemHashes;
 use item::ItemType;
 use std::{
     convert::TryFrom,
@@ -20,6 +21,7 @@ use walk::DirWalk;
 
 pub(crate) mod item;
 
+mod hash;
 mod walk;
 
 pub(crate) struct SyncOpts {
@@ -34,11 +36,22 @@ pub(crate) struct SyncOpts {
 }
 
 impl SyncOpts {
-    // TODO: SyncOpts::sync incremental syncing.
     pub(crate) fn sync(&self) -> io::Result<()> {
         if !self.dst_root.exists() {
             fs::create_dir_all(&self.dst_root)?;
         }
+
+        // TODO: SyncOpts::sync should have a previous hash map and a new hash map so we can manage
+        // entries that are deleted in a nicer way (i.e: not ignoring them).
+        let hash_file = self.dst_root.join(hash::FILE_NAME);
+        let hash_content = File::open(&hash_file).and_then(|mut fh| {
+            let mut buf = String::new();
+            fh.read_to_string(&mut buf).map(|_| buf)
+        });
+        let mut hashes = match hash_content {
+            Ok(buf) => ItemHashes::try_from(buf.as_ref())?,
+            _ => ItemHashes::default(),
+        };
 
         for (source, dir_items) in DirWalk::from(self) {
             let render_dir = render_path(&source, &self.src_root, &self.dst_root)?;
@@ -47,13 +60,21 @@ impl SyncOpts {
             for item in dir_items {
                 match item.ty {
                     ItemType::File => {
-                        if !should_render_path(&item.source) {
+                        if !item.should_render() {
                             index.push(IndexEntry::new(item, false));
                             continue;
                         }
+
+                        let mut markdown = String::new();
+                        File::open(&item.source)
+                            .and_then(|mut fh| fh.read_to_string(&mut markdown))?;
+                        if hashes.check_file(&item.source, &markdown) {
+                            continue;
+                        }
+                        hashes.insert_file(item.source.clone(), &markdown);
                         println!("syncing: {}", item.source.display());
 
-                        let html = self.render_file(&item.source)?;
+                        let html = self.render_file(&markdown)?;
                         File::create(&item.render)
                             .and_then(|mut fh| fh.write_all(html.as_bytes()))?;
                         index.push(IndexEntry::new(item, true));
@@ -72,19 +93,17 @@ impl SyncOpts {
             File::create(&index.path())
                 .and_then(|mut fh| fh.write_all(index.to_string().as_bytes()))?;
         }
-        Ok(())
+
+        File::create(&hash_file).and_then(|mut fh| fh.write_all(hashes.to_string().as_bytes()))
     }
 
-    fn render_file(&self, path: &Path) -> io::Result<String> {
+    fn render_file(&self, markdown: &str) -> io::Result<String> {
         let render = RenderOpts::new(
             &self.stylesheet,
             &self.syntax_highlighter,
             &self.mathjax_policy,
         );
-        let mut markdown = String::new();
-        File::open(path)
-            .and_then(|mut fh| fh.read_to_string(&mut markdown))
-            .and_then(|_| render.render(&markdown))
+        render.render(markdown)
     }
 }
 
@@ -124,8 +143,4 @@ fn render_path(source_path: &Path, source_root: &Path, render_root: &Path) -> io
                 ),
             )
         })
-}
-
-fn should_render_path(path: &Path) -> bool {
-    path.extension().unwrap_or_default() == "md"
 }
