@@ -1,4 +1,4 @@
-use crate::render::{mathjax::MathjaxPolicy, stylesheet::Stylesheet};
+use crate::render::{mathjax::MathjaxPolicy, stylesheet::Stylesheet, ToHtml};
 use maud::{html, Markup, DOCTYPE};
 
 pub(crate) struct Template<'a> {
@@ -8,8 +8,8 @@ pub(crate) struct Template<'a> {
     pub mathjax_policy: &'a MathjaxPolicy,
 }
 
-impl<'a> ToString for Template<'a> {
-    fn to_string(&self) -> String {
+impl<'a> ToHtml for Template<'a> {
+    fn to_html(&self) -> String {
         page(&self).into_string()
     }
 }

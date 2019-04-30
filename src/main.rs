@@ -1,4 +1,5 @@
 #![feature(proc_macro_hygiene)]
+#![feature(type_alias_enum_variants)]
 
 use self::{
     app::{RenderArgs, SyncArgs},

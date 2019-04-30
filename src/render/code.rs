@@ -1,10 +1,12 @@
-use pulldown_cmark::{CowStr, Event};
+use crate::render::ToHtml;
 use std::io;
 use syntect::{
     highlighting::{Theme, ThemeSet},
     html::highlighted_html_for_string,
-    parsing::SyntaxSet,
+    parsing::{SyntaxReference, SyntaxSet},
 };
+
+const DEFAULT_LANGUAGE_TOKEN: &str = "txt";
 
 pub(crate) struct SyntaxHighlighter {
     theme: Theme,
@@ -24,48 +26,69 @@ impl SyntaxHighlighter {
             syntax_set: SyntaxSet::load_defaults_newlines(),
         })
     }
-
-    pub(crate) fn render(&self, block: &CodeBlock) -> io::Result<Event> {
-        let syntax = self
-            .syntax_set
-            .find_syntax_by_token(&block.language_token)
-            .ok_or(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("unknown syntax highlighting token {}", block.language_token),
-            ))?;
-
-        let html = highlighted_html_for_string(&block.code, &self.syntax_set, &syntax, &self.theme);
-        Ok(Event::Html(CowStr::from(html)))
-    }
 }
 
-pub(crate) struct CodeBlock {
-    language_token: String,
+pub(crate) struct CodeBlock<'a> {
+    theme: &'a Theme,
+    syntax_set: &'a SyntaxSet,
+    syntax_ref: &'a SyntaxReference,
     code: String,
 }
 
-impl Default for CodeBlock {
-    fn default() -> Self {
-        Self {
-            language_token: "txt".into(),
-            code: String::new(),
-        }
-    }
-}
-
-impl CodeBlock {
-    pub(crate) fn with_language<S: ToString>(language_token: S) -> Self {
-        let token = language_token.to_string();
-        if token.is_empty() {
-            return Self::default();
-        }
-        Self {
-            language_token: token,
-            code: String::new(),
-        }
+impl<'a> CodeBlock<'a> {
+    pub(crate) fn new(highlighter: &'a SyntaxHighlighter, token: &str) -> io::Result<Self> {
+        let language_token = match token.is_empty() {
+            true => DEFAULT_LANGUAGE_TOKEN,
+            _ => token,
+        };
+        highlighter
+            .syntax_set
+            .find_syntax_by_token(&language_token)
+            .ok_or(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("unknown syntax highlighting token {}", language_token),
+            ))
+            .map(|syntax_ref| Self {
+                theme: &highlighter.theme,
+                syntax_set: &highlighter.syntax_set,
+                syntax_ref,
+                code: String::new(),
+            })
     }
 
     pub(crate) fn push(&mut self, code: &str) {
         self.code.push_str(code)
+    }
+}
+
+impl<'a> ToHtml for CodeBlock<'a> {
+    fn to_html(&self) -> String {
+        highlighted_html_for_string(&self.code, &self.syntax_set, &self.syntax_ref, &self.theme)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_language_token() {
+        let highlighter = SyntaxHighlighter::with_theme("base16-ocean.dark").unwrap();
+        assert!(CodeBlock::new(&highlighter, "invalid-language-token").is_err());
+    }
+
+    #[test]
+    fn invalid_theme_name() {
+        assert!(SyntaxHighlighter::with_theme("invalid-theme-name").is_err());
+    }
+
+    #[test]
+    fn valid_language_token() {
+        let highlighter = SyntaxHighlighter::with_theme("base16-ocean.dark").unwrap();
+        let mut block = CodeBlock::new(&highlighter, "rs").unwrap();
+        block.push("fn main() { println!(\"{}\"); }");
+
+        let html = block.to_html();
+        assert!(html.contains("fn") && html.contains("main"));
     }
 }

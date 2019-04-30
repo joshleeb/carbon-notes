@@ -1,11 +1,11 @@
 use self::{
     code::{CodeBlock, SyntaxHighlighter},
+    header::HeaderStart,
     mathjax::MathjaxPolicy,
     note::Note,
     stylesheet::Stylesheet,
 };
 use pulldown_cmark::{html, Event, Parser, Tag};
-use regex::Regex;
 use std::io;
 
 pub(crate) mod code;
@@ -14,18 +14,23 @@ pub(crate) mod mathjax;
 pub(crate) mod note;
 pub(crate) mod stylesheet;
 
+mod header;
 mod template;
 
 type ParserOptions = pulldown_cmark::Options;
 
+pub(crate) trait ToHtml {
+    fn to_html(&self) -> String;
+}
+
 #[derive(Default)]
-struct RenderState {
+struct RenderState<'a> {
     /// Title of the page if the first line is a header.
     title: Option<String>,
     /// ATX header level if a header is being processed.
     header: Option<i32>,
     /// Code block if a code block is being processed.
-    code_block: Option<CodeBlock>,
+    code_block: Option<CodeBlock<'a>>,
 }
 
 pub(crate) struct RenderOpts<'a> {
@@ -48,127 +53,72 @@ impl<'a> RenderOpts<'a> {
     }
 
     pub(crate) fn render(&self, markdown: &str) -> io::Result<String> {
-        // TODO: RenderOpts::render should include broken link callback in md_parser
-        let md_parser = Parser::new_with_broken_link_callback(markdown, parser_opts(), None);
+        let md_parser = self.md_parser(&markdown);
+        let (state, events) = self.process_events(md_parser)?;
 
+        let mut html_buf = String::new();
+        html::push_html(&mut html_buf, events.into_iter());
+
+        Ok(Note::new(
+            &html_buf,
+            &state.title,
+            self.stylesheet,
+            self.mathjax_policy,
+        )
+        .to_html())
+    }
+
+    fn process_events(
+        &self,
+        events: impl Iterator<Item = Event<'a>>,
+    ) -> io::Result<(RenderState, Vec<Event>)> {
         let mut state = RenderState::default();
-        let mut events = vec![];
+        let mut processed_events = vec![];
 
-        for event in md_parser {
+        for event in events {
             match event {
                 Event::Start(Tag::Header(atx_level)) => {
                     state.header = Some(atx_level);
                 }
                 Event::Start(Tag::CodeBlock(language)) => {
-                    state.code_block = Some(CodeBlock::with_language(language));
+                    state.code_block = Some(CodeBlock::new(&self.syntax_highlighter, &language)?);
                 }
                 Event::Text(text) => {
-                    if let Some(atx_level) = state.header {
+                    state.header = state.header.and_then(|atx_level| {
                         if state.title.is_none() && atx_level == 1 {
                             state.title = Some(text.to_string());
                         }
-                        events.push(render_header_start(atx_level, &text));
-                        state.header = None;
-                    }
+                        let header_start = HeaderStart::new(atx_level, &text);
+                        processed_events.push(Event::Html(header_start.to_html().into()));
+                        None
+                    });
                     if let Some(ref mut code_block) = state.code_block {
                         code_block.push(&text);
-                    } else {
-                        events.push(Event::Text(text));
+                        continue;
                     }
+                    processed_events.push(Event::Text(text));
                 }
                 Event::End(Tag::CodeBlock(_)) => {
-                    if let Some(code_block) = state.code_block {
-                        events.push(self.syntax_highlighter.render(&code_block)?);
-                        state.code_block = None;
-                    }
+                    state.code_block = state.code_block.and_then(|block| {
+                        processed_events.push(Event::Html(block.to_html().into()));
+                        None
+                    });
                 }
-                ev => events.push(ev),
+                ev => processed_events.push(ev),
             }
         }
-
-        let mut html = String::new();
-        html::push_html(&mut html, events.into_iter());
-        let note = Note::new(&html, &state.title, self.stylesheet, self.mathjax_policy);
-        Ok(note.to_string())
-    }
-}
-
-/// Render a header start event or an HTML tag for the header with an ID.
-fn render_header_start(atx_level: i32, raw_text: &str) -> Event<'static> {
-    // Remove leading and trailing whitespace, convert to lowercase, and filter out punctuation.
-    let text = raw_text
-        .trim()
-        .to_lowercase()
-        .chars()
-        .filter(|c| !c.is_ascii_punctuation())
-        .fold(String::new(), |mut acc, c| {
-            acc.push(c);
-            acc
-        });
-
-    if text.is_empty() {
-        return Event::Start(Tag::Header(atx_level));
+        Ok((state, processed_events))
     }
 
-    // Replace groups of spaces with dashes.
-    let re_space_group = Regex::new(r"\s+").unwrap();
-    let id = re_space_group.replace_all(&text, "-");
+    #[inline]
+    fn md_parser(&self, content: &'a str) -> Parser<'a> {
+        let mut opts = pulldown_cmark::Options::empty();
+        opts.insert(ParserOptions::ENABLE_TABLES);
+        opts.insert(ParserOptions::ENABLE_FOOTNOTES);
+        opts.insert(ParserOptions::ENABLE_STRIKETHROUGH);
+        opts.insert(ParserOptions::ENABLE_TASKLISTS);
 
-    Event::Html(format!("<h{} id=\"{}\">", atx_level, id).into())
-}
-
-#[inline]
-fn parser_opts() -> ParserOptions {
-    let mut opts = pulldown_cmark::Options::empty();
-    opts.insert(ParserOptions::ENABLE_TABLES);
-    opts.insert(ParserOptions::ENABLE_FOOTNOTES);
-    opts.insert(ParserOptions::ENABLE_STRIKETHROUGH);
-    opts.insert(ParserOptions::ENABLE_TASKLISTS);
-    opts
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod header_start {
-        use super::*;
-
-        #[test]
-        fn empty_text() {
-            assert_eq!(render_header_start(1, ""), Event::Start(Tag::Header(1)))
-        }
-
-        #[test]
-        fn non_empty_text() {
-            assert_eq!(
-                render_header_start(1, "some text"),
-                Event::Html("<h1 id=\"some-text\">".into())
-            )
-        }
-
-        #[test]
-        fn to_lowercase() {
-            assert_eq!(
-                render_header_start(1, "SoMe TeXt"),
-                Event::Html("<h1 id=\"some-text\">".into())
-            )
-        }
-
-        #[test]
-        fn strip_whitespace() {
-            assert_eq!(
-                render_header_start(1, " some   text   "),
-                Event::Html("<h1 id=\"some-text\">".into())
-            )
-        }
-
-        #[test]
-        fn removes_punctuation() {
-            assert_eq!(
-                render_header_start(1, "1. s'ome t:e;x`t"),
-                Event::Html("<h1 id=\"1-some-text\">".into())
-            )
-        }
+        // TODO: RenderOpts::md_parser should include broken link callback
+        Parser::new_with_broken_link_callback(content, opts, None)
     }
 }

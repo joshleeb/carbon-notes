@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Item {
     pub source: PathBuf,
     pub render: PathBuf,
@@ -41,7 +41,7 @@ impl Item {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ItemType {
     File,
     Directory,

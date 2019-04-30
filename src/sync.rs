@@ -1,11 +1,8 @@
 use crate::{
     config::Config,
     render::{
-        code::SyntaxHighlighter,
-        index::{Index, IndexEntry},
-        mathjax::MathjaxPolicy,
-        stylesheet::Stylesheet,
-        RenderOpts,
+        code::SyntaxHighlighter, index::Index, mathjax::MathjaxPolicy, stylesheet::Stylesheet,
+        RenderOpts, ToHtml,
     },
 };
 use globset::GlobSet;
@@ -61,9 +58,11 @@ impl SyncOpts {
                 match item.ty {
                     ItemType::File => {
                         if !item.should_render() {
-                            index.push(IndexEntry::new(item, false));
+                            index.push(item, false);
                             continue;
                         }
+                        // TODO: SyncOpts::sync don't clone item for index
+                        index.push(item.clone(), true);
 
                         let mut markdown = String::new();
                         File::open(&item.source)
@@ -77,13 +76,12 @@ impl SyncOpts {
                         let html = self.render_file(&markdown)?;
                         File::create(&item.render)
                             .and_then(|mut fh| fh.write_all(html.as_bytes()))?;
-                        index.push(IndexEntry::new(item, true));
                     }
                     ItemType::Directory => {
                         if !item.render.exists() {
                             fs::create_dir(&item.render)?;
                         }
-                        index.push(IndexEntry::new(item, true));
+                        index.push(item, true);
                     }
                     ItemType::Symlink => {}
                 }
@@ -91,7 +89,7 @@ impl SyncOpts {
 
             index.sort();
             File::create(&index.path())
-                .and_then(|mut fh| fh.write_all(index.to_string().as_bytes()))?;
+                .and_then(|mut fh| fh.write_all(index.to_html().as_bytes()))?;
         }
 
         File::create(&hash_file).and_then(|mut fh| fh.write_all(hashes.to_string().as_bytes()))

@@ -1,5 +1,5 @@
 use crate::{
-    render::{mathjax::MathjaxPolicy, template::Template},
+    render::{mathjax::MathjaxPolicy, template::Template, ToHtml},
     sync::{
         item::{Item, ItemType},
         SyncOpts,
@@ -30,8 +30,8 @@ impl<'a> Index<'a> {
         }
     }
 
-    pub(crate) fn push(&mut self, entry: IndexEntry) {
-        self.entries.push(entry);
+    pub(crate) fn push(&mut self, item: Item, is_rendered: bool) {
+        self.entries.push(IndexEntry::new(item, is_rendered));
     }
 
     pub(crate) fn sort(&mut self) {
@@ -65,19 +65,19 @@ impl<'a> Render for Index<'a> {
     }
 }
 
-impl<'a> ToString for Index<'a> {
-    fn to_string(&self) -> String {
+impl<'a> ToHtml for Index<'a> {
+    fn to_html(&self) -> String {
         Template {
             content: self.render(),
             title: &Some(self.title()),
             stylesheet: &self.sync_opts.stylesheet,
             mathjax_policy: &MathjaxPolicy::Never,
         }
-        .to_string()
+        .to_html()
     }
 }
 
-#[derive(Eq)]
+#[derive(Debug, Eq)]
 pub(crate) struct IndexEntry {
     item: Item,
     is_rendered: bool,
