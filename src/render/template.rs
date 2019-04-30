@@ -1,7 +1,7 @@
 use crate::render::{mathjax::MathjaxPolicy, stylesheet::Stylesheet, ToHtml};
 use maud::{html, Markup, DOCTYPE};
 
-pub(crate) struct Template<'a> {
+pub struct Template<'a> {
     pub content: Markup,
     pub title: &'a Option<String>,
     pub stylesheet: &'a Option<Stylesheet>,

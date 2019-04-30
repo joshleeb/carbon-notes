@@ -7,14 +7,14 @@ use std::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Item {
+pub struct Item {
     pub source: PathBuf,
     pub render: PathBuf,
     pub ty: ItemType,
 }
 
 impl Item {
-    pub(crate) fn new(
+    pub fn new(
         entry: &DirEntry,
         source_root: &Path,
         render_root: &Path,
@@ -33,7 +33,7 @@ impl Item {
         })
     }
 
-    pub(crate) fn should_render(&self) -> bool {
+    pub fn should_render(&self) -> bool {
         match self.ty {
             ItemType::File { .. } => self.source.extension().unwrap_or_default() == "md",
             _ => false,
@@ -42,7 +42,7 @@ impl Item {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ItemType {
+pub enum ItemType {
     File,
     Directory,
     Symlink,

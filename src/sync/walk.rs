@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) struct DirWalk<'a> {
+pub struct DirWalk<'a> {
     source_root: &'a Path,
     render_root: &'a Path,
     ignore_set: Option<&'a GlobSet>,

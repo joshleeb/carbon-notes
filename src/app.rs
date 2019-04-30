@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) fn create() -> App<'static, 'static> {
+pub fn create() -> App<'static, 'static> {
     App::new("carbon")
         .version(crate_version!())
         .author(crate_authors!())
@@ -76,7 +76,7 @@ fn arg_config() -> Arg<'static, 'static> {
 }
 
 #[derive(Debug)]
-pub(crate) struct RenderArgs {
+pub struct RenderArgs {
     pub config_path: PathBuf,
     pub input_path: PathBuf,
     pub output_path: PathBuf,
@@ -106,7 +106,7 @@ impl TryFrom<&ArgMatches<'static>> for RenderArgs {
 }
 
 #[derive(Debug)]
-pub(crate) struct SyncArgs {
+pub struct SyncArgs {
     pub config_path: PathBuf,
 }
 

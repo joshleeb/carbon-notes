@@ -3,13 +3,13 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use std::path::PathBuf;
 
 #[derive(Debug, Default)]
-pub(crate) struct Config {
+pub struct Config {
     pub sync: SyncConfig,
     pub render: RenderConfig,
 }
 
 #[derive(Debug)]
-pub(crate) struct RenderConfig {
+pub struct RenderConfig {
     pub stylesheet_path: Option<PathBuf>,
     pub should_inline_stylesheet: bool,
     pub code_block_theme: String,
@@ -31,7 +31,7 @@ impl Default for RenderConfig {
 // TODO: config::SyncConfig should allow configuring a delete option which is to be implemented
 //  - This would delete notes and dirs from the render dir that no longer exist in the source dir
 #[derive(Debug)]
-pub(crate) struct SyncConfig {
+pub struct SyncConfig {
     pub notes_dir: PathBuf,
     pub render_dir: PathBuf,
     pub ignore: GlobSet,

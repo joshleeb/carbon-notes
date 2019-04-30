@@ -10,17 +10,17 @@ use std::{
 pub(super) const FILE_NAME: &str = ".carbon-hashes";
 
 #[derive(Debug, Default)]
-pub(crate) struct ItemHashes {
+pub struct ItemHashes {
     /// Map of the render path of the item to the hash.
     items: HashMap<PathBuf, u64>,
 }
 
 impl ItemHashes {
-    pub(crate) fn insert_file(&mut self, path: PathBuf, buf: &str) {
+    pub fn insert_file(&mut self, path: PathBuf, buf: &str) {
         self.items.insert(path, self.file_hash(buf));
     }
 
-    pub(crate) fn check_file(&self, path: &Path, buf: &str) -> bool {
+    pub fn check_file(&self, path: &Path, buf: &str) -> bool {
         self.items
             .get(path)
             .map(|prev_hash| *prev_hash == self.file_hash(buf))

@@ -1,7 +1,7 @@
 use crate::render::{mathjax::MathjaxPolicy, stylesheet::Stylesheet, template::Template, ToHtml};
 use maud::{html, Markup, PreEscaped, Render};
 
-pub(crate) struct Note<'a> {
+pub struct Note<'a> {
     rendered_html: &'a str,
     title: &'a Option<String>,
     stylesheet: &'a Option<Stylesheet>,
@@ -9,7 +9,7 @@ pub(crate) struct Note<'a> {
 }
 
 impl<'a> Note<'a> {
-    pub(crate) fn new(
+    pub fn new(
         rendered_html: &'a str,
         title: &'a Option<String>,
         stylesheet: &'a Option<Stylesheet>,

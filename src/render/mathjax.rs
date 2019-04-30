@@ -1,7 +1,7 @@
 use crate::render::ToHtml;
 use maud::{html, Markup, PreEscaped, Render};
 
-pub(crate) const MATHJAX_CONFIG: &str = "
+pub const MATHJAX_CONFIG: &str = "
     MathJax.Hub.Config({
         extensions: [\"tex2jax.js\"],
         jax: [\"input/TeX\", \"output/HTML-CSS\"],
@@ -15,14 +15,14 @@ pub(crate) const MATHJAX_CONFIG: &str = "
 ";
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum MathjaxPolicy {
+pub enum MathjaxPolicy {
     Always,
     Never,
 }
 
 // TODO: MathjaxPolicy::inclusion implement the `Auto` policy
 impl MathjaxPolicy {
-    pub(crate) fn inclusion(&self) -> bool {
+    pub fn inclusion(&self) -> bool {
         *self == MathjaxPolicy::Always
     }
 }

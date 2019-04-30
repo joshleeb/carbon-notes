@@ -2,13 +2,13 @@ use crate::render::ToHtml;
 use itertools::Itertools;
 use regex::Regex;
 
-pub(crate) struct HeaderStart<'a> {
+pub struct HeaderStart<'a> {
     atx_level: i32,
     content: &'a str,
 }
 
 impl<'a> HeaderStart<'a> {
-    pub(crate) fn new(atx_level: i32, content: &'a str) -> Self {
+    pub fn new(atx_level: i32, content: &'a str) -> Self {
         Self { atx_level, content }
     }
 

@@ -6,13 +6,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) enum Stylesheet {
+pub enum Stylesheet {
     Inline(String),
     Link(PathBuf),
 }
 
 impl Stylesheet {
-    pub(crate) fn new(path: &Path, should_inline: bool) -> io::Result<Self> {
+    pub fn new(path: &Path, should_inline: bool) -> io::Result<Self> {
         if !should_inline {
             return Ok(Stylesheet::Link(path.into()));
         }

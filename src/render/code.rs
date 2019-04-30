@@ -8,13 +8,13 @@ use syntect::{
 
 const DEFAULT_LANGUAGE_TOKEN: &str = "txt";
 
-pub(crate) struct SyntaxHighlighter {
+pub struct SyntaxHighlighter {
     theme: Theme,
     syntax_set: SyntaxSet,
 }
 
 impl SyntaxHighlighter {
-    pub(crate) fn with_theme(theme_name: &str) -> io::Result<Self> {
+    pub fn with_theme(theme_name: &str) -> io::Result<Self> {
         let theme_set = ThemeSet::load_defaults();
         let theme = theme_set.themes.get(theme_name).ok_or(io::Error::new(
             io::ErrorKind::NotFound,
@@ -28,7 +28,7 @@ impl SyntaxHighlighter {
     }
 }
 
-pub(crate) struct CodeBlock<'a> {
+pub struct CodeBlock<'a> {
     theme: &'a Theme,
     syntax_set: &'a SyntaxSet,
     syntax_ref: &'a SyntaxReference,
@@ -36,7 +36,7 @@ pub(crate) struct CodeBlock<'a> {
 }
 
 impl<'a> CodeBlock<'a> {
-    pub(crate) fn new(highlighter: &'a SyntaxHighlighter, token: &str) -> io::Result<Self> {
+    pub fn new(highlighter: &'a SyntaxHighlighter, token: &str) -> io::Result<Self> {
         let language_token = match token.is_empty() {
             true => DEFAULT_LANGUAGE_TOKEN,
             _ => token,
@@ -56,7 +56,7 @@ impl<'a> CodeBlock<'a> {
             })
     }
 
-    pub(crate) fn push(&mut self, code: &str) {
+    pub fn push(&mut self, code: &str) {
         self.code.push_str(code)
     }
 }

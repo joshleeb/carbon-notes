@@ -8,18 +8,18 @@ use self::{
 use pulldown_cmark::{html, Event, Parser, Tag};
 use std::io;
 
-pub(crate) mod code;
-pub(crate) mod index;
-pub(crate) mod mathjax;
-pub(crate) mod note;
-pub(crate) mod stylesheet;
+pub mod code;
+pub mod index;
+pub mod mathjax;
+pub mod note;
+pub mod stylesheet;
 
 mod header;
 mod template;
 
 type ParserOptions = pulldown_cmark::Options;
 
-pub(crate) trait ToHtml {
+pub trait ToHtml {
     fn to_html(&self) -> String;
 }
 
@@ -33,14 +33,14 @@ struct RenderState<'a> {
     code_block: Option<CodeBlock<'a>>,
 }
 
-pub(crate) struct RenderOpts<'a> {
+pub struct RenderOpts<'a> {
     stylesheet: &'a Option<Stylesheet>,
     syntax_highlighter: &'a SyntaxHighlighter,
     mathjax_policy: &'a MathjaxPolicy,
 }
 
 impl<'a> RenderOpts<'a> {
-    pub(crate) fn new(
+    pub fn new(
         stylesheet: &'a Option<Stylesheet>,
         syntax_highlighter: &'a SyntaxHighlighter,
         mathjax_policy: &'a MathjaxPolicy,
@@ -52,7 +52,7 @@ impl<'a> RenderOpts<'a> {
         }
     }
 
-    pub(crate) fn render(&self, markdown: &str) -> io::Result<String> {
+    pub fn render(&self, markdown: &str) -> io::Result<String> {
         let md_parser = self.md_parser(&markdown);
         let (state, events) = self.process_events(md_parser)?;
 

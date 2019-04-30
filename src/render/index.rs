@@ -13,7 +13,7 @@ use std::{
 
 const INDEX_FILE_NAME: &str = "index.html";
 
-pub(crate) struct Index<'a> {
+pub struct Index<'a> {
     sync_opts: &'a SyncOpts,
     source: &'a Path,
     render: PathBuf,
@@ -21,7 +21,7 @@ pub(crate) struct Index<'a> {
 }
 
 impl<'a> Index<'a> {
-    pub(crate) fn new(sync_opts: &'a SyncOpts, source: &'a Path, render: &'a Path) -> Self {
+    pub fn new(sync_opts: &'a SyncOpts, source: &'a Path, render: &'a Path) -> Self {
         Self {
             sync_opts,
             source,
@@ -30,15 +30,15 @@ impl<'a> Index<'a> {
         }
     }
 
-    pub(crate) fn push(&mut self, item: Item, is_rendered: bool) {
+    pub fn push(&mut self, item: Item, is_rendered: bool) {
         self.entries.push(IndexEntry::new(item, is_rendered));
     }
 
-    pub(crate) fn sort(&mut self) {
+    pub fn sort(&mut self) {
         self.entries.sort();
     }
 
-    pub(crate) fn path(&self) -> &Path {
+    pub fn path(&self) -> &Path {
         self.render.as_ref()
     }
 
@@ -78,13 +78,13 @@ impl<'a> ToHtml for Index<'a> {
 }
 
 #[derive(Debug, Eq)]
-pub(crate) struct IndexEntry {
+pub struct IndexEntry {
     item: Item,
     is_rendered: bool,
 }
 
 impl IndexEntry {
-    pub(crate) fn new(item: Item, is_rendered: bool) -> Self {
+    pub fn new(item: Item, is_rendered: bool) -> Self {
         Self { item, is_rendered }
     }
 

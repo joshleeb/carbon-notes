@@ -16,12 +16,12 @@ use std::{
 };
 use walk::DirWalk;
 
-pub(crate) mod item;
+pub mod item;
 
 mod hash;
 mod walk;
 
-pub(crate) struct SyncOpts {
+pub struct SyncOpts {
     /// Root source directory containing notes to be synced.
     pub src_root: PathBuf,
     /// Root destination directory which nodes from `src` will be synced to.
@@ -33,7 +33,7 @@ pub(crate) struct SyncOpts {
 }
 
 impl SyncOpts {
-    pub(crate) fn sync(&self) -> io::Result<()> {
+    pub fn sync(&self) -> io::Result<()> {
         if !self.dst_root.exists() {
             fs::create_dir_all(&self.dst_root)?;
         }
