@@ -152,8 +152,5 @@ fn get_config_path(path: Option<PathBuf>) -> io::Result<PathBuf> {
 
     dirs::config_dir()
         .map(|base| base.join("carbon/config.toml"))
-        .ok_or(io::Error::new(
-            io::ErrorKind::Other,
-            "unable to determine config directory",
-        ))
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "unable to determine config directory"))
 }

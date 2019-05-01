@@ -1,11 +1,16 @@
 use std::{
+    collections::hash_map::DefaultHasher,
     fs::File,
+    hash::{Hash, Hasher},
     io::{self, Read},
     path::{Path, PathBuf},
 };
 
 #[derive(Debug)]
 pub enum Object {
+    /// File that is renderable. For now this is only markdown files.
+    SourceFile(SourceFileObject),
+    /// File that is non-renderable.
     File(FileObject),
     Dir(DirObject),
     Symlink(LinkObject),
@@ -15,12 +20,13 @@ impl Object {
     pub fn new(path: PathBuf, source_root: &Path, render_root: &Path) -> io::Result<Self> {
         let ft = path.metadata()?.file_type();
         if ft.is_file() {
-            let render_path = FileObject::render_path(&path, source_root, render_root);
-            return Ok(Self::File(FileObject::new(path, render_path)));
+            if path.extension().unwrap_or_default() != "md" {
+                return Ok(Self::File(FileObject::new(path)));
+            }
+            return SourceFileObject::new(path, source_root, render_root).map(Self::SourceFile);
         }
         if ft.is_dir() {
-            let render_path = DirObject::render_path(&path, source_root, render_root);
-            return Ok(Self::Dir(DirObject::empty(path, render_path)));
+            return Ok(Self::Dir(DirObject::new(path, source_root, render_root)));
         }
         if ft.is_symlink() {
             return Ok(Self::Symlink(LinkObject::new(path)));
@@ -34,9 +40,16 @@ impl Object {
     pub fn path(&self) -> &Path {
         match self {
             Object::File(x) => x.path.as_ref(),
+            Object::SourceFile(x) => x.path.as_ref(),
             Object::Dir(x) => x.path.as_ref(),
             Object::Symlink(x) => x.path.as_ref(),
         }
+    }
+}
+
+impl From<SourceFileObject> for Object {
+    fn from(file: SourceFileObject) -> Self {
+        Self::SourceFile(file)
     }
 }
 
@@ -52,29 +65,58 @@ impl From<DirObject> for Object {
     }
 }
 
-#[derive(Debug)]
-pub struct FileObject {
-    pub path: PathBuf,
-    pub render_path: Option<PathBuf>,
+impl From<LinkObject> for Object {
+    fn from(link: LinkObject) -> Self {
+        Self::Symlink(link)
+    }
 }
 
-impl FileObject {
-    fn new(path: PathBuf, render_path: Option<PathBuf>) -> Self {
-        Self { path, render_path }
+#[derive(Debug)]
+pub struct SourceFileObject {
+    pub path: PathBuf,
+    pub render_path: PathBuf,
+    pub contents_hash: u64,
+}
+
+impl SourceFileObject {
+    pub fn new(path: PathBuf, source_root: &Path, render_root: &Path) -> io::Result<Self> {
+        let render_path = render_path(&path, source_root, render_root).with_extension("html");
+        let contents_hash = SourceFileObject::hash_contents(&path)?;
+
+        Ok(SourceFileObject {
+            path,
+            render_path,
+            contents_hash,
+        })
     }
 
     pub fn read_content(&self) -> io::Result<String> {
-        File::open(&self.path).and_then(|mut fh| {
+        SourceFileObject::read_to_string(&self.path)
+    }
+
+    fn hash_contents(path: &Path) -> io::Result<u64> {
+        let content = SourceFileObject::read_to_string(path)?;
+        let mut hasher = DefaultHasher::new();
+        content.hash(&mut hasher);
+        Ok(hasher.finish())
+    }
+
+    fn read_to_string(path: &Path) -> io::Result<String> {
+        File::open(path).and_then(|mut fh| {
             let mut content = String::new();
             fh.read_to_string(&mut content).map(|_| content)
         })
     }
+}
 
-    fn render_path(path: &Path, source_root: &Path, render_root: &Path) -> Option<PathBuf> {
-        if path.extension().unwrap_or_default() != "md" {
-            return None;
-        }
-        Some(render_path(path, source_root, render_root).with_extension("html"))
+#[derive(Debug)]
+pub struct FileObject {
+    pub path: PathBuf,
+}
+
+impl FileObject {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
     }
 }
 
@@ -86,7 +128,9 @@ pub struct DirObject {
 }
 
 impl DirObject {
-    pub fn empty(path: PathBuf, render_path: PathBuf) -> Self {
+    pub fn new(path: PathBuf, source_root: &Path, render_root: &Path) -> Self {
+        let render_path = render_path(&path, source_root, render_root);
+
         Self {
             path,
             render_path,
@@ -96,10 +140,6 @@ impl DirObject {
 
     pub fn extend<I: IntoIterator<Item = Object>>(&mut self, children: I) {
         self.children.extend(children);
-    }
-
-    fn render_path(path: &Path, source_root: &Path, render_root: &Path) -> PathBuf {
-        render_path(&path, source_root, render_root)
     }
 }
 

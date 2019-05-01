@@ -85,7 +85,7 @@ impl<'a> From<&'a Object> for IndexEntry<'a> {
         let path = object.path();
         let render_path = match object {
             Object::Dir(dir) => Some(dir.render_path.join(INDEX_FILE_NAME)),
-            Object::File(file) => file.render_path.clone(),
+            Object::SourceFile(file) => Some(file.render_path.clone()),
             _ => None,
         };
         Self { path, render_path }

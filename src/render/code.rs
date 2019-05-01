@@ -16,10 +16,12 @@ pub struct SyntaxHighlighter {
 impl SyntaxHighlighter {
     pub fn with_theme(theme_name: &str) -> io::Result<Self> {
         let theme_set = ThemeSet::load_defaults();
-        let theme = theme_set.themes.get(theme_name).ok_or(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("unknown syntax highlighting theme {}", theme_name),
-        ))?;
+        let theme = theme_set.themes.get(theme_name).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("unknown syntax highlighting theme {}", theme_name),
+            )
+        })?;
 
         Ok(Self {
             theme: theme.clone(),
@@ -37,17 +39,20 @@ pub struct CodeBlock<'a> {
 
 impl<'a> CodeBlock<'a> {
     pub fn new(highlighter: &'a SyntaxHighlighter, token: &str) -> io::Result<Self> {
-        let language_token = match token.is_empty() {
-            true => DEFAULT_LANGUAGE_TOKEN,
-            _ => token,
+        let language_token = if token.is_empty() {
+            DEFAULT_LANGUAGE_TOKEN
+        } else {
+            token
         };
         highlighter
             .syntax_set
             .find_syntax_by_token(&language_token)
-            .ok_or(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("unknown syntax highlighting token {}", language_token),
-            ))
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("unknown syntax highlighting token {}", language_token),
+                )
+            })
             .map(|syntax_ref| Self {
                 theme: &highlighter.theme,
                 syntax_set: &highlighter.syntax_set,

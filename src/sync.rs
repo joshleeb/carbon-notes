@@ -6,12 +6,12 @@ use crate::{
     },
 };
 use globset::GlobSet;
-use object::{FileObject, Object};
+use object::{Object, SourceFileObject};
 use std::{
     convert::TryFrom,
     fs::{self, File},
     io::{self, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 use tree::DirTree;
 
@@ -43,13 +43,8 @@ impl SyncOpts {
             }
 
             for child in &dir.children {
-                match child {
-                    Object::File(file) => {
-                        if let Some(ref render_path) = file.render_path {
-                            self.render(file, render_path)?;
-                        }
-                    }
-                    _ => {}
+                if let Object::SourceFile(file) = child {
+                    self.render(file)?;
                 }
             }
 
@@ -60,11 +55,11 @@ impl SyncOpts {
         Ok(())
     }
 
-    fn render(&self, file: &FileObject, render_path: &Path) -> io::Result<()> {
+    fn render(&self, file: &SourceFileObject) -> io::Result<()> {
         println!("syncing: {}", file.path.display());
         let opts = self.render_opts();
         let html = file.read_content().and_then(|md| opts.render(&md))?;
-        File::create(render_path).and_then(|mut fh| fh.write_all(html.as_bytes()))
+        File::create(&file.render_path).and_then(|mut fh| fh.write_all(html.as_bytes()))
     }
 
     #[inline]
