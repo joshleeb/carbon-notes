@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub enum Object {
     /// File that is renderable. For now this is only markdown files.
     SourceFile(SourceFileObject),
@@ -109,6 +109,12 @@ impl SourceFileObject {
     }
 }
 
+impl Hash for SourceFileObject {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
+}
+
 #[derive(Debug)]
 pub struct FileObject {
     pub path: PathBuf,
@@ -117,6 +123,12 @@ pub struct FileObject {
 impl FileObject {
     pub fn new(path: PathBuf) -> Self {
         Self { path }
+    }
+}
+
+impl Hash for FileObject {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
     }
 }
 
@@ -143,6 +155,12 @@ impl DirObject {
     }
 }
 
+impl Hash for DirObject {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
+}
+
 #[derive(Debug)]
 pub struct LinkObject {
     pub path: PathBuf,
@@ -151,6 +169,12 @@ pub struct LinkObject {
 impl LinkObject {
     pub fn new(path: PathBuf) -> Self {
         Self { path }
+    }
+}
+
+impl Hash for LinkObject {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
     }
 }
 
