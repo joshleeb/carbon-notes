@@ -1,45 +1,31 @@
 use crate::{
     render::{mathjax::MathjaxPolicy, template::Template, ToHtml},
     sync::{
-        item::{Item, ItemType},
+        object::{DirObject, Object},
         SyncOpts,
     },
 };
 use maud::{html, Markup, Render};
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
+    io,
     path::{Path, PathBuf},
 };
 
 const INDEX_FILE_NAME: &str = "index.html";
 
 pub struct Index<'a> {
-    sync_opts: &'a SyncOpts,
-    source: &'a Path,
-    render: PathBuf,
-    entries: Vec<IndexEntry>,
+    opts: &'a SyncOpts,
+    dir: &'a DirObject,
 }
 
 impl<'a> Index<'a> {
-    pub fn new(sync_opts: &'a SyncOpts, source: &'a Path, render: &'a Path) -> Self {
-        Self {
-            sync_opts,
-            source,
-            render: render.join(INDEX_FILE_NAME),
-            entries: vec![],
-        }
+    pub fn new(opts: &'a SyncOpts, dir: &'a DirObject) -> io::Result<Self> {
+        Ok(Self { opts, dir })
     }
 
-    pub fn push(&mut self, item: Item, is_rendered: bool) {
-        self.entries.push(IndexEntry::new(item, is_rendered));
-    }
-
-    pub fn sort(&mut self) {
-        self.entries.sort();
-    }
-
-    pub fn path(&self) -> &Path {
-        self.render.as_ref()
+    pub fn render_path(&self) -> PathBuf {
+        self.dir.render_path.join(INDEX_FILE_NAME)
     }
 
     fn title(&self) -> String {
@@ -47,17 +33,18 @@ impl<'a> Index<'a> {
     }
 
     fn header(&self) -> String {
-        let relative = self.source.strip_prefix(&self.sync_opts.src_root).unwrap();
+        let relative = self.dir.path.strip_prefix(&self.opts.src_root).unwrap();
         format!("Index: /{}", relative.display())
     }
 }
 
 impl<'a> Render for Index<'a> {
     fn render(&self) -> Markup {
+        let entries = self.dir.children.iter().map(IndexEntry::from);
         html! {
             h1 { (self.header()) }
             ul {
-                @for entry in &self.entries {
+                @for entry in entries {
                     (entry)
                 }
             }
@@ -70,7 +57,7 @@ impl<'a> ToHtml for Index<'a> {
         Template {
             content: self.render(),
             title: &Some(self.title()),
-            stylesheet: &self.sync_opts.stylesheet,
+            stylesheet: &self.opts.stylesheet,
             mathjax_policy: &MathjaxPolicy::Never,
         }
         .to_html()
@@ -78,52 +65,59 @@ impl<'a> ToHtml for Index<'a> {
 }
 
 #[derive(Debug, Eq)]
-pub struct IndexEntry {
-    item: Item,
-    is_rendered: bool,
+pub struct IndexEntry<'a> {
+    path: &'a Path,
+    render_path: Option<PathBuf>,
 }
 
-impl IndexEntry {
-    pub fn new(item: Item, is_rendered: bool) -> Self {
-        Self { item, is_rendered }
-    }
-
-    // TODO: IndexEntry::path should not need to clone except for directory.
-    fn path(&self) -> PathBuf {
-        match (&self.item.ty, self.is_rendered) {
-            (ItemType::File { .. }, true) => self.item.render.clone(),
-            (ItemType::Directory, _) => self.item.render.join(INDEX_FILE_NAME),
-            _ => self.item.source.clone(),
+impl<'a> IndexEntry<'a> {
+    fn path(&'a self) -> &'a Path {
+        if let Some(path) = &self.render_path {
+            return path;
         }
+        self.path
     }
 }
 
-impl Render for IndexEntry {
+impl<'a> From<&'a Object> for IndexEntry<'a> {
+    // TODO: IndexEntry::from shouldn't need to clone fild.render_path.
+    fn from(object: &'a Object) -> Self {
+        let path = object.path();
+        let render_path = match object {
+            Object::Dir(dir) => Some(dir.render_path.join(INDEX_FILE_NAME)),
+            Object::File(file) => file.render_path.clone(),
+            _ => None,
+        };
+        Self { path, render_path }
+    }
+}
+
+impl<'a> Render for IndexEntry<'a> {
     fn render(&self) -> Markup {
         html! {
             li {
                 a href=(self.path().display()) {
-                    (self.item.source.display())
+                    (self.path.display())
                 }
             }
         }
     }
 }
 
-impl Ord for IndexEntry {
+impl<'a> Ord for IndexEntry<'a> {
     fn cmp(&self, other: &IndexEntry) -> Ordering {
-        self.item.source.cmp(&other.item.source)
+        self.path.cmp(&other.path)
     }
 }
 
-impl PartialOrd for IndexEntry {
+impl<'a> PartialOrd for IndexEntry<'a> {
     fn partial_cmp(&self, other: &IndexEntry) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for IndexEntry {
+impl<'a> PartialEq for IndexEntry<'a> {
     fn eq(&self, other: &IndexEntry) -> bool {
-        self.item == other.item
+        self.path == other.path && self.render_path == other.render_path
     }
 }
