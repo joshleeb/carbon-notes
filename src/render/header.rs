@@ -1,5 +1,4 @@
 use crate::render::ToHtml;
-use itertools::Itertools;
 use regex::Regex;
 
 pub struct HeaderStart<'a> {
@@ -19,7 +18,10 @@ impl<'a> HeaderStart<'a> {
             .to_lowercase()
             .chars()
             .filter(|c| !c.is_ascii_punctuation())
-            .join("");
+            .fold(String::new(), |mut acc, x| {
+                acc.push(x);
+                acc
+            });
 
         // Replace groups of spaces with dashes.
         let re_space_group = Regex::new(r"\s+").unwrap();
