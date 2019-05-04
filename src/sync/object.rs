@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub enum Object {
     /// File that is renderable. For now this is only markdown files.
     SourceFile(SourceFileObject),
@@ -23,10 +23,15 @@ impl Object {
             if path.extension().unwrap_or_default() != "md" {
                 return Ok(Self::File(FileObject::new(path)));
             }
-            return SourceFileObject::new(path, source_root, render_root).map(Self::SourceFile);
+            return SourceFileObject::with_source(path, source_root, render_root)
+                .map(Self::SourceFile);
         }
         if ft.is_dir() {
-            return Ok(Self::Dir(DirObject::new(path, source_root, render_root)));
+            return Ok(Self::Dir(DirObject::with_source(
+                path,
+                source_root,
+                render_root,
+            )));
         }
         if ft.is_symlink() {
             return Ok(Self::Symlink(LinkObject::new(path)));
@@ -43,6 +48,23 @@ impl Object {
             Object::SourceFile(x) => x.path.as_ref(),
             Object::Dir(x) => x.path.as_ref(),
             Object::Symlink(x) => x.path.as_ref(),
+        }
+    }
+
+    // TODO: Remove Object::merkle_hash as it's only used for testing
+    pub fn merkle_hash(&self) -> Option<u64> {
+        match self {
+            Object::Dir(x) => Some(x.merkle_hash),
+            _ => None,
+        }
+    }
+
+    // TODO: Remove Object::contents_hash as it's only used for testing
+    pub fn contents_hash(&self) -> Option<u64> {
+        match self {
+            Object::SourceFile(x) => Some(x.contents_hash),
+            Object::Dir(x) => Some(x.contents_hash),
+            _ => None,
         }
     }
 }
@@ -71,7 +93,7 @@ impl From<LinkObject> for Object {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct SourceFileObject {
     pub path: PathBuf,
     pub render_path: PathBuf,
@@ -79,7 +101,17 @@ pub struct SourceFileObject {
 }
 
 impl SourceFileObject {
-    pub fn new(path: PathBuf, source_root: &Path, render_root: &Path) -> io::Result<Self> {
+    // TODO: Remove SourceFileObject::new as it's only used for testing
+    pub fn new(path: PathBuf, render_path: PathBuf) -> Self {
+        Self {
+            path,
+            render_path,
+            ..Default::default()
+        }
+    }
+
+    // TODO: SourceFileObject::with_source should have a better name
+    pub fn with_source(path: PathBuf, source_root: &Path, render_root: &Path) -> io::Result<Self> {
         let render_path = render_path(&path, source_root, render_root).with_extension("html");
         let contents_hash = SourceFileObject::hash_contents(&path)?;
 
@@ -115,7 +147,7 @@ impl Hash for SourceFileObject {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileObject {
     pub path: PathBuf,
 }
@@ -132,26 +164,39 @@ impl Hash for FileObject {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct DirObject {
     pub path: PathBuf,
     pub render_path: PathBuf,
     pub children: Vec<Object>,
+
+    pub contents_hash: u64,
+    pub merkle_hash: u64,
 }
 
 impl DirObject {
-    pub fn new(path: PathBuf, source_root: &Path, render_root: &Path) -> Self {
-        let render_path = render_path(&path, source_root, render_root);
-
+    pub fn new(path: PathBuf, render_path: PathBuf) -> Self {
         Self {
             path,
             render_path,
-            children: vec![],
+            ..Default::default()
         }
+    }
+
+    // TODO: DirObject::with_source should have a better name
+    pub fn with_source(path: PathBuf, source_root: &Path, render_root: &Path) -> Self {
+        let render_path = render_path(&path, source_root, render_root);
+        Self::new(path, render_path)
     }
 
     pub fn extend<I: IntoIterator<Item = Object>>(&mut self, children: I) {
         self.children.extend(children);
+
+        let mut hasher = DefaultHasher::new();
+        for child in &self.children {
+            child.hash(&mut hasher);
+        }
+        self.contents_hash = hasher.finish();
     }
 }
 
@@ -161,7 +206,7 @@ impl Hash for DirObject {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LinkObject {
     pub path: PathBuf,
 }
@@ -229,5 +274,32 @@ mod tests {
             render_path(&source, &source_root, &render_root),
             PathBuf::from("/docs/_rendered/projects/carbon")
         );
+    }
+
+    mod dir_object {
+        use super::*;
+
+        #[test]
+        fn extend_updates_contents_hash() {
+            let mut dir = DirObject::new(PathBuf::new(), PathBuf::new());
+            let children = vec![
+                Object::from(DirObject::new(PathBuf::from("/some/path"), PathBuf::new())),
+                Object::from(SourceFileObject::new(
+                    PathBuf::from("/some/source-file-path"),
+                    PathBuf::new(),
+                )),
+                Object::from(FileObject::new(PathBuf::from("/some/file-path"))),
+                Object::from(LinkObject::new(PathBuf::from("/some/link-path"))),
+            ];
+
+            let mut hasher = DefaultHasher::new();
+            for child in &children {
+                child.hash(&mut hasher);
+            }
+            dir.extend(children);
+
+            assert_eq!(dir.children.len(), 4);
+            assert_eq!(dir.contents_hash, hasher.finish());
+        }
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use globset::GlobSet;
-use object::{Object, SourceFileObject};
+use object::SourceFileObject;
 use std::{
     convert::TryFrom,
     fs::{self, File},
@@ -17,6 +17,7 @@ use tree::DirTree;
 
 pub mod object;
 
+mod incremental;
 mod tree;
 
 pub struct SyncOpts {
@@ -36,27 +37,28 @@ impl SyncOpts {
             fs::create_dir_all(&self.dst_root)?;
         }
 
-        let tree = DirTree::with_root(self.src_root.clone(), &self.dst_root, &self.ignore)?;
+        let mut tree = DirTree::with_root(self.src_root.clone(), &self.dst_root, &self.ignore)?;
         for dir in tree.walk() {
-            if !dir.render_path.exists() {
-                fs::create_dir(&dir.render_path)?;
+            if !dir.object.render_path.exists() {
+                fs::create_dir(&dir.object.render_path)?;
             }
 
-            for child in &dir.children {
-                if let Object::SourceFile(file) = child {
-                    self.render(file)?;
-                }
+            for source_file in &dir.to_render {
+                self.render(source_file)?;
             }
 
-            let index = Index::new(self, &dir)?;
-            File::create(index.render_path())
-                .and_then(|mut fh| fh.write_all(index.to_html().as_bytes()))?;
+            if dir.should_render_index {
+                println!("building index for {:?}", dir.object.path);
+                let index = Index::new(self, &dir.object)?;
+                File::create(index.render_path())
+                    .and_then(|mut fh| fh.write_all(index.to_html().as_bytes()))?;
+            }
         }
-        Ok(())
+        tree.persist_hashes()
     }
 
     fn render(&self, file: &SourceFileObject) -> io::Result<()> {
-        println!("syncing: {}", file.path.display());
+        println!("rendered note at: {}", file.render_path.display());
         let opts = self.render_opts();
         let html = file.read_content().and_then(|md| opts.render(&md))?;
         File::create(&file.render_path).and_then(|mut fh| fh.write_all(html.as_bytes()))
