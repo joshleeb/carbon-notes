@@ -1,3 +1,4 @@
+use crate::sync::hash::{DirChildrenHash, MerkleHash, SourceContentsHash};
 use std::{
     collections::hash_map::DefaultHasher,
     fs::File,
@@ -50,23 +51,6 @@ impl Object {
             Object::Symlink(x) => x.path.as_ref(),
         }
     }
-
-    // TODO: Remove Object::merkle_hash as it's only used for testing
-    pub fn merkle_hash(&self) -> Option<u64> {
-        match self {
-            Object::Dir(x) => Some(x.merkle_hash),
-            _ => None,
-        }
-    }
-
-    // TODO: Remove Object::contents_hash as it's only used for testing
-    pub fn contents_hash(&self) -> Option<u64> {
-        match self {
-            Object::SourceFile(x) => Some(x.contents_hash),
-            Object::Dir(x) => Some(x.contents_hash),
-            _ => None,
-        }
-    }
 }
 
 impl From<SourceFileObject> for Object {
@@ -97,23 +81,14 @@ impl From<LinkObject> for Object {
 pub struct SourceFileObject {
     pub path: PathBuf,
     pub render_path: PathBuf,
-    pub contents_hash: u64,
+    pub contents_hash: SourceContentsHash,
 }
 
 impl SourceFileObject {
-    // TODO: Remove SourceFileObject::new as it's only used for testing
-    pub fn new(path: PathBuf, render_path: PathBuf) -> Self {
-        Self {
-            path,
-            render_path,
-            ..Default::default()
-        }
-    }
-
     // TODO: SourceFileObject::with_source should have a better name
     pub fn with_source(path: PathBuf, source_root: &Path, render_root: &Path) -> io::Result<Self> {
         let render_path = render_path(&path, source_root, render_root).with_extension("html");
-        let contents_hash = SourceFileObject::hash_contents(&path)?;
+        let contents_hash = SourceContentsHash::from(SourceFileObject::hash_contents(&path)?);
 
         Ok(SourceFileObject {
             path,
@@ -141,6 +116,15 @@ impl SourceFileObject {
     }
 }
 
+impl<T: Into<PathBuf>> From<T> for SourceFileObject {
+    fn from(path: T) -> Self {
+        Self {
+            path: path.into(),
+            ..Default::default()
+        }
+    }
+}
+
 impl Hash for SourceFileObject {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.path.hash(state);
@@ -158,6 +142,12 @@ impl FileObject {
     }
 }
 
+impl<T: Into<PathBuf>> From<T> for FileObject {
+    fn from(path: T) -> Self {
+        Self { path: path.into() }
+    }
+}
+
 impl Hash for FileObject {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.path.hash(state);
@@ -169,9 +159,8 @@ pub struct DirObject {
     pub path: PathBuf,
     pub render_path: PathBuf,
     pub children: Vec<Object>,
-
-    pub contents_hash: u64,
-    pub merkle_hash: u64,
+    pub merkle_hash: MerkleHash,
+    pub children_hash: DirChildrenHash,
 }
 
 impl DirObject {
@@ -196,7 +185,16 @@ impl DirObject {
         for child in &self.children {
             child.hash(&mut hasher);
         }
-        self.contents_hash = hasher.finish();
+        self.children_hash = DirChildrenHash::from(hasher.finish());
+    }
+}
+
+impl<T: Into<PathBuf>> From<T> for DirObject {
+    fn from(path: T) -> Self {
+        Self {
+            path: path.into(),
+            ..Default::default()
+        }
     }
 }
 
@@ -214,6 +212,12 @@ pub struct LinkObject {
 impl LinkObject {
     pub fn new(path: PathBuf) -> Self {
         Self { path }
+    }
+}
+
+impl<T: Into<PathBuf>> From<T> for LinkObject {
+    fn from(path: T) -> Self {
+        Self { path: path.into() }
     }
 }
 
@@ -282,14 +286,11 @@ mod tests {
         #[test]
         fn extend_updates_contents_hash() {
             let mut dir = DirObject::new(PathBuf::new(), PathBuf::new());
-            let children = vec![
-                Object::from(DirObject::new(PathBuf::from("/some/path"), PathBuf::new())),
-                Object::from(SourceFileObject::new(
-                    PathBuf::from("/some/source-file-path"),
-                    PathBuf::new(),
-                )),
-                Object::from(FileObject::new(PathBuf::from("/some/file-path"))),
-                Object::from(LinkObject::new(PathBuf::from("/some/link-path"))),
+            let children: Vec<Object> = vec![
+                DirObject::from("/some/path").into(),
+                SourceFileObject::from("/some/source-file-path").into(),
+                FileObject::from("/some/file-path").into(),
+                LinkObject::from("/some/link-path").into(),
             ];
 
             let mut hasher = DefaultHasher::new();
@@ -299,7 +300,7 @@ mod tests {
             dir.extend(children);
 
             assert_eq!(dir.children.len(), 4);
-            assert_eq!(dir.contents_hash, hasher.finish());
+            assert_eq!(dir.children_hash, hasher.finish().into());
         }
     }
 }

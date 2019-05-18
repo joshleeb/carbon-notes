@@ -1,4 +1,5 @@
 use crate::sync::{
+    hash::MerkleHash,
     incremental::DirStore,
     object::{DirObject, Object, SourceFileObject},
 };
@@ -70,7 +71,7 @@ impl DirTree {
     /// directories.
     fn compute_merkle_hash(root: &mut DirObject) {
         let mut hasher = DefaultHasher::new();
-        root.contents_hash.hash(&mut hasher);
+        root.children_hash.hash(&mut hasher);
 
         for child in &mut root.children {
             match child {
@@ -82,7 +83,7 @@ impl DirTree {
                 _ => {}
             };
         }
-        root.merkle_hash = hasher.finish();
+        root.merkle_hash = MerkleHash::from(hasher.finish());
     }
 }
 
@@ -112,12 +113,12 @@ impl<'a> Iterator for DirWalk<'a> {
         for child in &dir.children {
             match child {
                 Object::Dir(child_dir) => {
-                    if !store.merkle_hash(dir.merkle_hash) {
+                    if !store.merkle_hash_eq(&dir.merkle_hash) {
                         self.unseen_dirs.push_back(child_dir)
                     }
                 }
                 Object::SourceFile(child_file) => {
-                    if !store.source_file_content(&child_file.path, child_file.contents_hash) {
+                    if !store.source_hash_eq(&child_file.path, &child_file.contents_hash) {
                         to_render.push(child_file)
                     }
                 }
@@ -127,7 +128,7 @@ impl<'a> Iterator for DirWalk<'a> {
         Some(Dir {
             object: dir,
             to_render,
-            should_render_index: !store.dir_content(dir.contents_hash),
+            should_render_index: !store.dir_hash_eq(&dir.children_hash),
         })
     }
 }
@@ -150,183 +151,190 @@ fn dir_children(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sync::object::{FileObject, LinkObject, SourceFileObject};
+    use crate::sync::object::{DirObject, FileObject, LinkObject, Object, SourceFileObject};
+
+    fn obj2dir<'a>(object: &Object) -> &DirObject {
+        if let Object::Dir(dir) = object {
+            dir
+        } else {
+            panic!("expected DirObject, found {:?}", object);
+        }
+    }
 
     #[test]
     fn compute_merkle_hash_dir() {
-        let mut dir = DirObject::new(PathBuf::from("/a"), PathBuf::new());
+        let mut dir = DirObject {
+            path: "/a".into(),
+            ..Default::default()
+        };
 
         let mut hasher = DefaultHasher::new();
-        dir.contents_hash.hash(&mut hasher);
+        dir.children_hash.hash(&mut hasher);
 
         DirTree::compute_merkle_hash(&mut dir);
 
-        assert_eq!(dir.merkle_hash, hasher.finish());
+        assert_eq!(dir.merkle_hash, MerkleHash::from(hasher.finish()));
     }
 
     #[test]
     fn compute_merkle_hash_source_file() {
-        let mut dir = DirObject::new(PathBuf::from("/a"), PathBuf::new());
-        let mut file = SourceFileObject::new(PathBuf::from("/a/b.txt"), PathBuf::new());
+        let mut dir = DirObject::from("/a");
+        let file = SourceFileObject {
+            path: "/a/b.txt".into(),
+            contents_hash: 123321.into(),
+            ..Default::default()
+        };
 
-        let file_contents_hash = 123321;
-        file.contents_hash = file_contents_hash;
-
-        dir.extend(vec![file.into()]);
+        dir.extend(vec![file.clone().into()]);
 
         let mut hasher = DefaultHasher::new();
-        dir.contents_hash.hash(&mut hasher);
-        file_contents_hash.hash(&mut hasher);
+        dir.children_hash.hash(&mut hasher);
+        file.contents_hash.hash(&mut hasher);
 
         DirTree::compute_merkle_hash(&mut dir);
-        assert_eq!(dir.merkle_hash, hasher.finish());
+        assert_eq!(dir.merkle_hash, MerkleHash::from(hasher.finish()));
     }
 
     #[test]
     fn compute_merkle_hash_file() {
-        let mut dir = DirObject::new(PathBuf::from("/a"), PathBuf::new());
-        let file = FileObject::new(PathBuf::from("/a/b.txt"));
+        let mut dir = DirObject::from("/a");
+        let file = FileObject::from("/a/b.txt");
 
         dir.extend(vec![file.into()]);
 
         let mut hasher = DefaultHasher::new();
-        dir.contents_hash.hash(&mut hasher);
+        dir.children_hash.hash(&mut hasher);
 
         DirTree::compute_merkle_hash(&mut dir);
-        assert_eq!(dir.merkle_hash, hasher.finish());
+        assert_eq!(dir.merkle_hash, MerkleHash::from(hasher.finish()));
     }
 
     #[test]
     fn compute_merkle_hash_link() {
-        let mut dir = DirObject::new(PathBuf::from("/a"), PathBuf::new());
-        let link = LinkObject::new(PathBuf::from("/a/b.txt"));
+        let mut dir = DirObject::from("/a");
+        let link = LinkObject::from("/a/b.txt");
 
         dir.extend(vec![link.into()]);
 
         let mut hasher = DefaultHasher::new();
-        dir.contents_hash.hash(&mut hasher);
+        dir.children_hash.hash(&mut hasher);
 
         DirTree::compute_merkle_hash(&mut dir);
-        assert_eq!(dir.merkle_hash, hasher.finish());
+        assert_eq!(dir.merkle_hash, MerkleHash::from(hasher.finish()));
     }
 
     #[test]
     fn compute_merkle_hash_empty_subdirs() {
-        let mut root = DirObject::new(PathBuf::from("/a"), PathBuf::new());
-        let subdir_b = DirObject::new(PathBuf::from("/a/b"), PathBuf::new());
-        let subdir_c = DirObject::new(PathBuf::from("/a/c"), PathBuf::new());
+        let mut root = DirObject::from("/a");
+        let subdir_b = DirObject::from("/a/b");
+        let subdir_c = DirObject::from("/a/c");
 
-        // Since the subdirs don't have any subdirs of themselves, the merkle hash will be equal to
-        // the contents hash.
         let mut subdir_b_hasher = DefaultHasher::new();
-        subdir_b.contents_hash.hash(&mut subdir_b_hasher);
+        subdir_b.children_hash.hash(&mut subdir_b_hasher);
         let mut subdir_c_hasher = DefaultHasher::new();
-        subdir_c.contents_hash.hash(&mut subdir_c_hasher);
+        subdir_c.children_hash.hash(&mut subdir_c_hasher);
 
         root.extend(vec![subdir_b.into(), subdir_c.into()]);
 
         let mut root_hasher = DefaultHasher::new();
-        root.contents_hash.hash(&mut root_hasher);
+        root.children_hash.hash(&mut root_hasher);
         subdir_b_hasher.finish().hash(&mut root_hasher);
         subdir_c_hasher.finish().hash(&mut root_hasher);
 
         DirTree::compute_merkle_hash(&mut root);
-        assert_eq!(root.merkle_hash, root_hasher.finish());
+        assert_eq!(root.merkle_hash, MerkleHash::from(root_hasher.finish()));
+        assert_ne!(u64::from(root.merkle_hash), u64::from(root.children_hash));
     }
 
-    // TODO: DirObject::compute_merkle_hash_subdir_file_path_change should be better.
     #[test]
     fn compute_merkle_hash_subdir_file_path_change() {
-        let mut root = DirObject::new(PathBuf::from("/a"), PathBuf::new());
-        let mut subdir_b = DirObject::new(PathBuf::from("/a/b"), PathBuf::new());
-        let subdir_b_file = FileObject::new(PathBuf::from("/a/b/file.txt"));
-        let subdir_c = DirObject::new(PathBuf::from("/a/c"), PathBuf::new());
+        let mut r1_root = DirObject::from("/a");
+        let mut r1_subdir_b = DirObject::from("/a/b");
+        let r1_subdir_b_file = FileObject::from("/a/b/file-round-1.txt");
+        let r1_subdir_c = DirObject::from("/a/c");
 
-        subdir_b.extend(vec![subdir_b_file.into()]);
-        root.extend(vec![subdir_b.clone().into(), subdir_c.clone().into()]);
+        r1_subdir_b.extend(vec![r1_subdir_b_file.into()]);
+        r1_root.extend(vec![r1_subdir_b.into(), r1_subdir_c.into()]);
 
-        DirTree::compute_merkle_hash(&mut root);
+        DirTree::compute_merkle_hash(&mut r1_root);
 
-        let mut new_root = DirObject::new(PathBuf::from("/a"), PathBuf::new());
-        let mut new_subdir_b = DirObject::new(PathBuf::from("/a/b"), PathBuf::new());
-        let new_subdir_b_file = FileObject::new(PathBuf::from("/a/b/file-new.txt"));
-        let new_subdir_c = DirObject::new(PathBuf::from("/a/c"), PathBuf::new());
+        let mut r2_root = DirObject::from("/a");
+        let mut r2_subdir_b = DirObject::from("/a/b");
+        let r2_subdir_b_file = FileObject::from("/a/b/file-round-2.txt");
+        let r2_subdir_c = DirObject::from("/a/c");
 
-        new_subdir_b.extend(vec![new_subdir_b_file.into()]);
-        new_root.extend(vec![
-            new_subdir_b.clone().into(),
-            new_subdir_c.clone().into(),
-        ]);
+        r2_subdir_b.extend(vec![r2_subdir_b_file.into()]);
+        r2_root.extend(vec![r2_subdir_b.into(), r2_subdir_c.into()]);
 
-        DirTree::compute_merkle_hash(&mut new_root);
+        DirTree::compute_merkle_hash(&mut r2_root);
 
-        assert_ne!(root.merkle_hash, new_root.merkle_hash);
-        assert_eq!(root.contents_hash, new_root.contents_hash);
+        assert_ne!(r1_root.merkle_hash, r2_root.merkle_hash);
+        assert_eq!(r1_root.children_hash, r2_root.children_hash);
         assert_ne!(
-            root.children[0].merkle_hash().unwrap(),
-            new_root.children[0].merkle_hash().unwrap()
+            obj2dir(&r1_root.children[0]).merkle_hash,
+            obj2dir(&r2_root.children[0]).merkle_hash
         );
         assert_ne!(
-            root.children[0].contents_hash().unwrap(),
-            new_root.children[0].contents_hash().unwrap(),
+            obj2dir(&r1_root.children[0]).children_hash,
+            obj2dir(&r2_root.children[0]).children_hash
         );
         assert_eq!(
-            root.children[1].merkle_hash().unwrap(),
-            new_root.children[1].merkle_hash().unwrap(),
+            obj2dir(&r1_root.children[1]).merkle_hash,
+            obj2dir(&r2_root.children[1]).merkle_hash
         );
         assert_eq!(
-            root.children[1].contents_hash().unwrap(),
-            new_root.children[1].contents_hash().unwrap(),
+            obj2dir(&r1_root.children[1]).children_hash,
+            obj2dir(&r2_root.children[1]).children_hash
         );
     }
 
-    // TODO: DirObject::compute_merkle_hash_subdir_file_content_change should be better.
     #[test]
     fn compute_merkle_hash_subdir_file_content_change() {
-        let mut root = DirObject::new(PathBuf::from("/a"), PathBuf::new());
-        let mut subdir_b = DirObject::new(PathBuf::from("/a/b"), PathBuf::new());
-        let mut subdir_b_file =
-            SourceFileObject::new(PathBuf::from("/a/b/file.txt"), PathBuf::new());
-        subdir_b_file.contents_hash = 123321;
-        let subdir_c = DirObject::new(PathBuf::from("/a/c"), PathBuf::new());
+        let mut r1_root = DirObject::from("/a");
+        let mut r1_subdir_b = DirObject::from("/a/b");
+        let r1_subdir_b_file = SourceFileObject {
+            path: "/a/b/file-round-1.txt".into(),
+            contents_hash: 123321.into(),
+            ..Default::default()
+        };
+        let r1_subdir_c = DirObject::from("/a/c");
 
-        subdir_b.extend(vec![subdir_b_file.into()]);
-        root.extend(vec![subdir_b.clone().into(), subdir_c.clone().into()]);
+        r1_subdir_b.extend(vec![r1_subdir_b_file.into()]);
+        r1_root.extend(vec![r1_subdir_b.into(), r1_subdir_c.into()]);
 
-        DirTree::compute_merkle_hash(&mut root);
+        DirTree::compute_merkle_hash(&mut r1_root);
 
-        let mut new_root = DirObject::new(PathBuf::from("/a"), PathBuf::new());
-        let mut new_subdir_b = DirObject::new(PathBuf::from("/a/b"), PathBuf::new());
-        let mut new_subdir_b_file =
-            SourceFileObject::new(PathBuf::from("/a/b/file.txt"), PathBuf::new());
-        new_subdir_b_file.contents_hash = 789987;
-        let new_subdir_c = DirObject::new(PathBuf::from("/a/c"), PathBuf::new());
+        let mut r2_root = DirObject::from("/a");
+        let mut r2_subdir_b = DirObject::from("/a/b");
+        let r2_subdir_b_file = SourceFileObject {
+            path: "/a/b/file-round-1.txt".into(),
+            contents_hash: 789987.into(),
+            ..Default::default()
+        };
+        let r2_subdir_c = DirObject::from("/a/c");
 
-        new_subdir_b.extend(vec![new_subdir_b_file.into()]);
-        new_root.extend(vec![
-            new_subdir_b.clone().into(),
-            new_subdir_c.clone().into(),
-        ]);
+        r2_subdir_b.extend(vec![r2_subdir_b_file.into()]);
+        r2_root.extend(vec![r2_subdir_b.into(), r2_subdir_c.into()]);
 
-        DirTree::compute_merkle_hash(&mut new_root);
+        DirTree::compute_merkle_hash(&mut r2_root);
 
-        assert_ne!(root.merkle_hash, new_root.merkle_hash);
-        assert_eq!(root.contents_hash, new_root.contents_hash);
+        assert_ne!(r1_root.merkle_hash, r2_root.merkle_hash);
+        assert_eq!(r1_root.children_hash, r2_root.children_hash);
         assert_ne!(
-            root.children[0].merkle_hash().unwrap(),
-            new_root.children[0].merkle_hash().unwrap()
+            obj2dir(&r1_root.children[0]).merkle_hash,
+            obj2dir(&r2_root.children[0]).merkle_hash
         );
         assert_eq!(
-            root.children[0].contents_hash().unwrap(),
-            new_root.children[0].contents_hash().unwrap(),
+            obj2dir(&r1_root.children[0]).children_hash,
+            obj2dir(&r2_root.children[0]).children_hash
         );
         assert_eq!(
-            root.children[1].merkle_hash().unwrap(),
-            new_root.children[1].merkle_hash().unwrap(),
+            obj2dir(&r1_root.children[1]).merkle_hash,
+            obj2dir(&r2_root.children[1]).merkle_hash
         );
         assert_eq!(
-            root.children[1].contents_hash().unwrap(),
-            new_root.children[1].contents_hash().unwrap(),
+            obj2dir(&r1_root.children[1]).children_hash,
+            obj2dir(&r2_root.children[1]).children_hash
         );
     }
 }

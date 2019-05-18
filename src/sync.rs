@@ -17,6 +17,7 @@ use tree::DirTree;
 
 pub mod object;
 
+mod hash;
 mod incremental;
 mod tree;
 

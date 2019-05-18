@@ -1,4 +1,7 @@
-use crate::sync::object::{DirObject, Object};
+use crate::sync::{
+    hash::{DirChildrenHash, MerkleHash, SourceContentsHash},
+    object::{DirObject, Object},
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -11,19 +14,9 @@ const DIR_HASH_FILE_NAME: &str = ".carbon-hash-store.json";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DirStore {
-    /// Merkle hash of the directory.
-    ///
-    /// This is computed with the merkle hashes of any subdirectories in the directory.
-    pub merkle_hash: u64,
-    /// Hash of the contents of the directory.
-    ///
-    /// This is computed without going into any subdirectories, and is purely at a surface level
-    /// which usually means just the source path of child is used.
-    pub contents_hash: u64,
-    /// Hash of the source files in the directory.
-    ///
-    /// This is the content hash of each source file in the directory.
-    pub source_hash: HashMap<PathBuf, u64>,
+    pub merkle: MerkleHash,
+    pub dir: DirChildrenHash,
+    pub source: HashMap<PathBuf, SourceContentsHash>,
 
     #[serde(skip)]
     path: PathBuf,
@@ -72,49 +65,50 @@ impl From<&DirObject> for DirStore {
         for child in &dir.children {
             if let Object::SourceFile(file) = child {
                 // DirStore::from shouldn't need to clone file.path.
-                source_hash.insert(file.path.clone(), file.contents_hash);
+                source_hash.insert(file.path.clone(), file.contents_hash.clone());
             }
         }
 
         Self {
-            merkle_hash: dir.merkle_hash,
-            contents_hash: dir.contents_hash,
-            source_hash,
+            merkle: dir.merkle_hash.clone(),
+            dir: dir.children_hash.clone(),
+            source: source_hash,
             path: dir.render_path.join(DIR_HASH_FILE_NAME),
         }
     }
 }
 
 // TODO: DirStore2 should have a better name
-pub struct DirStore2(Option<DirStore>);
+pub struct DirStore2 {
+    inner: Option<DirStore>,
+}
 
-// TODO: DirStore2 functions should have better names
 impl DirStore2 {
-    pub fn merkle_hash(&self, merkle_hash: u64) -> bool {
-        self.0
+    pub fn merkle_hash_eq(&self, hash: &MerkleHash) -> bool {
+        self.inner
             .as_ref()
-            .map(|store| store.merkle_hash == merkle_hash)
+            .map(|store| store.merkle == *hash)
             .unwrap_or(false)
     }
 
-    pub fn dir_content(&self, contents_hash: u64) -> bool {
-        self.0
+    pub fn dir_hash_eq(&self, hash: &DirChildrenHash) -> bool {
+        self.inner
             .as_ref()
-            .map(|store| store.contents_hash == contents_hash)
+            .map(|store| store.dir == *hash)
             .unwrap_or(false)
     }
 
-    pub fn source_file_content(&self, path: &Path, contents_hash: u64) -> bool {
-        self.0
+    pub fn source_hash_eq(&self, path: &Path, hash: &SourceContentsHash) -> bool {
+        self.inner
             .as_ref()
-            .and_then(|store| store.source_hash.get(path))
-            .map(|hash| *hash == contents_hash)
+            .and_then(|store| store.source.get(path))
+            .map(|source_hash| *source_hash == *hash)
             .unwrap_or(false)
     }
 }
 
 impl From<Option<DirStore>> for DirStore2 {
-    fn from(store: Option<DirStore>) -> Self {
-        Self(store)
+    fn from(inner: Option<DirStore>) -> Self {
+        Self { inner }
     }
 }
