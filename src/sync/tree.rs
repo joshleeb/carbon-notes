@@ -1,7 +1,7 @@
 use crate::sync::{
     hash::MerkleHash,
-    incremental::DirStore,
     object::{DirObject, Object, SourceFileObject},
+    store::{HashStore, HashStoreRw},
 };
 use globset::GlobSet;
 use std::{
@@ -57,12 +57,13 @@ impl DirTree {
 
     pub fn persist_hashes(&mut self) -> io::Result<()> {
         for dir in self.walk() {
-            let store = DirStore::from(dir.object);
+            let store = HashStore::from(dir.object);
             let json = store.to_json()?;
             if !dir.object.render_path.exists() {
                 fs::create_dir(&dir.object.render_path)?;
             }
-            File::create(store.path()).and_then(|mut fh| fh.write_all(json.as_bytes()))?;
+            File::create(HashStore::store_path(&dir.object.render_path))
+                .and_then(|mut fh| fh.write_all(json.as_bytes()))?;
         }
         Ok(())
     }
@@ -107,7 +108,7 @@ impl<'a> Iterator for DirWalk<'a> {
             return None;
         }
         let dir = self.unseen_dirs.pop_front().unwrap();
-        let store = DirStore::read_for_dir(&dir.render_path);
+        let store = HashStoreRw::read_dir(&dir.render_path);
 
         let mut to_render = vec![];
         for child in &dir.children {

@@ -18,7 +18,7 @@ use tree::DirTree;
 pub mod object;
 
 mod hash;
-mod incremental;
+mod store;
 mod tree;
 
 pub struct SyncOpts {
