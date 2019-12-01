@@ -8,7 +8,7 @@ body {
   padding: 0 30px;
   margin: 15px auto;
   color: #333;
-  width: 976px;
+  width: 80ch;
   border: 1px solid #e1e4e8;
   border-radius: 2px;
   min-height: 95vh;
@@ -110,10 +110,6 @@ h5 {
 h6 {
   color: #777777;
   font-size: 14px;
-}
-
-p, blockquote, ul, ol, dl, li, table, pre {
-  margin: 15px 0;
 }
 
 hr {
