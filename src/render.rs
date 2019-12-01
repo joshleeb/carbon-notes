@@ -81,7 +81,12 @@ impl<'a> RenderOpts<'a> {
                     state.header = Some(atx_level);
                 }
                 Event::Start(Tag::CodeBlock(language)) => {
-                    state.code_block = Some(CodeBlock::new(&self.syntax_highlighter, &language)?);
+                    let code_block = CodeBlock::new(&self.syntax_highlighter, &language)
+                        .unwrap_or_else(|_| {
+                            eprintln!("unknown language block {:?}", language);
+                            CodeBlock::new(&self.syntax_highlighter, "txt").unwrap()
+                        });
+                    state.code_block = Some(code_block);
                 }
                 Event::Text(text) => {
                     state.header = state.header.and_then(|atx_level| {
