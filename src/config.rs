@@ -62,8 +62,8 @@ impl Default for SyncConfig {
         }
 
         Self {
-            notes_dir: home_dir.join("Dropbox/notes"),
-            render_dir: home_dir.join("Dropbox/notes/_rendered"),
+            notes_dir: home_dir.join("Dropbox/store"),
+            render_dir: home_dir.join("Documents/carbon/rendered"),
             ignore: ignore.build().unwrap(),
             incremental: true,
         }
